@@ -16,9 +16,9 @@ final class CalendarModel {
     let isPreview: Bool
 
     init() {
-        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.preview"
+        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview"
         isPreview = preview
-        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.design-preview")! : .standard
+        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
         hiddenIDs = Set(defaults.stringArray(forKey: "hiddenEventCalendars") ?? [])
         colorOverrides = defaults.dictionary(forKey: "eventCalendarColors") as? [String: String] ?? [:]
         feed = CalendarFeed(reader: preview ? PreviewCalendarReader() : CalendarStore())

@@ -50,10 +50,10 @@ enum Palette {
 
 enum Metrics {
     static let gutter: CGFloat = 16
-    static let rowHeight: CGFloat = 76
+    static let rowHeight: CGFloat = 72
     static let circle: CGFloat = 21
-    static let radius: CGFloat = 14
-    static let chipRadius: CGFloat = 15
+    static let radius: CGFloat = 10
+    static let chipRadius: CGFloat = 7
     /// Apple's comfortable minimum for anything tappable.
     static let target: CGFloat = 44
 }
@@ -141,5 +141,66 @@ struct WashButton: View {
                 .background(Circle().fill(Palette.card.opacity(0.75)))
         }
         .buttonStyle(.plain)
+    }
+}
+
+
+/// Beacon's small navigation vocabulary. Drawn on one 24-point grid with
+/// rounded joins; system symbols remain for standard macOS actions.
+struct BeaconGlyph: View {
+    enum Kind { case beacon, inbox, today, calendar, upcoming, someday, completed }
+    let kind: Kind
+
+    var body: some View {
+        GeometryReader { geometry in
+            drawing
+                .stroke(style: StrokeStyle(lineWidth: 1.65, lineCap: .round, lineJoin: .round))
+                .scaleEffect(x: geometry.size.width / 24, y: geometry.size.height / 24, anchor: .topLeading)
+        }.accessibilityHidden(true)
+    }
+
+    private var drawing: Path {
+        Path { p in
+            func line(_ points: [(CGFloat, CGFloat)]) {
+                guard let first = points.first else { return }
+                p.move(to: CGPoint(x: first.0, y: first.1))
+                for point in points.dropFirst() { p.addLine(to: CGPoint(x: point.0, y: point.1)) }
+            }
+            switch kind {
+            case .beacon:
+                line([(8,21),(10,10),(14,10),(16,21)])
+                line([(6,21),(18,21)])
+                p.addRoundedRect(in: CGRect(x:9,y:5,width:6,height:5), cornerSize: CGSize(width:1,height:1))
+                line([(12,2),(12,3)])
+                line([(3,5),(6,7)]); line([(18,7),(21,5)])
+                line([(3,11),(6,10)]); line([(18,10),(21,11)])
+                line([(10,16),(14,16)])
+            case .inbox:
+                line([(3,13),(6,5),(18,5),(21,13),(21,20),(3,20),(3,13),(8,13),(9,16),(15,16),(16,13),(21,13)])
+                line([(9,8),(15,8)])
+            case .today:
+                p.addEllipse(in: CGRect(x:7,y:7,width:10,height:10))
+                for i in 0..<8 {
+                    let angle = Double(i) * .pi / 4
+                    line([(12+CGFloat(cos(angle))*8,12+CGFloat(sin(angle))*8),
+                          (12+CGFloat(cos(angle))*10,12+CGFloat(sin(angle))*10)])
+                }
+            case .calendar:
+                p.addRoundedRect(in: CGRect(x:4,y:5,width:16,height:16), cornerSize: CGSize(width:2,height:2))
+                line([(4,10),(20,10)]); line([(8,3),(8,7)]); line([(16,3),(16,7)])
+                p.addRoundedRect(in: CGRect(x:8,y:14,width:3,height:3), cornerSize: CGSize(width:0.5,height:0.5))
+            case .upcoming:
+                line([(3,7),(14,7)]); line([(3,12),(20,12),(16,8)])
+                line([(20,12),(16,16)]); line([(3,17),(10,17)])
+            case .someday:
+                line([(4,19),(20,19)])
+                p.move(to: CGPoint(x:6,y:14))
+                p.addCurve(to: CGPoint(x:18,y:14), control1: CGPoint(x:6,y:5), control2: CGPoint(x:18,y:5))
+                line([(12,3),(12,5)]); line([(3,8),(5,9)]); line([(19,9),(21,8)])
+            case .completed:
+                p.addRoundedRect(in: CGRect(x:4,y:4,width:16,height:16), cornerSize: CGSize(width:4,height:4))
+                line([(8,12),(11,15),(16,9)])
+            }
+        }
     }
 }

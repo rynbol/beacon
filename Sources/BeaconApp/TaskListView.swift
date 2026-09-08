@@ -4,24 +4,24 @@ import BeaconKit
 private enum Destination: String, CaseIterable, Identifiable {
     case all = "All reminders", today = "Today", calendar = "Calendar", upcoming = "Upcoming", someday = "Someday", done = "Completed"
     var id: Self { self }
-    var icon: String {
+    var glyph: BeaconGlyph.Kind {
         switch self {
-        case .all: return "tray.full"
-        case .today: return "sun.max"
-        case .calendar: return "calendar"
-        case .upcoming: return "arrow.right"
-        case .someday: return "leaf"
-        case .done: return "checkmark.circle"
+        case .all: return .inbox
+        case .today: return .today
+        case .calendar: return .calendar
+        case .upcoming: return .upcoming
+        case .someday: return .someday
+        case .done: return .completed
         }
     }
     var subtitle: String {
         switch self {
-        case .all: return "A little space for everything on your mind."
-        case .today: return "One thing at a time. The rest can wait."
+        case .all: return "All your reminders, in one place."
+        case .today: return "What needs your attention today."
         case .calendar: return "Everything u have"
-        case .upcoming: return "A clear view of what’s coming next."
-        case .someday: return "Good ideas, waiting for their moment."
-        case .done: return "A little less on your mind. Completed in the last hour."
+        case .upcoming: return "Scheduled for the days ahead."
+        case .someday: return "Saved for when you’re ready."
+        case .done: return "Finished in the last hour."
         }
     }
 }
@@ -71,7 +71,7 @@ struct TaskListView: View {
             }
         }
         return Sections.group(visibleTasks, now: .now, calendar: .current).map {
-            DisplayGroup(id: "time-\($0.id)", title: $0.section == .today ? "Today & ready when you are" : $0.section.title, tasks: $0.tasks)
+            DisplayGroup(id: "time-\($0.id)", title: $0.section == .today ? "Today" : $0.section.title, tasks: $0.tasks)
         }
     }
     private var accent: Color { model.accent.color }
@@ -138,12 +138,11 @@ struct TaskListView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: "dot.radiowaves.left.and.right")
-                    .font(.system(size: 21, weight: .medium)).foregroundStyle(accent)
-                Text("beacon").font(.system(size: 24, weight: .semibold, design: .rounded))
+                BeaconGlyph(kind: .beacon).frame(width: 28, height: 28).foregroundStyle(accent)
+                Text("beacon").font(.system(size: 25, weight: .medium, design: .serif)).tracking(-0.8)
             }
             .padding(.horizontal, 24).padding(.top, 29).padding(.bottom, 38)
-            Text("YOUR SPACE").font(.system(size: 10, weight: .semibold)).tracking(1.6)
+            Text("REMINDERS").font(.system(size: 10, weight: .semibold)).tracking(1.6)
                 .foregroundStyle(Palette.secondary).padding(.horizontal, 25).padding(.bottom, 12)
             ForEach(Destination.allCases) { item in
                 Button {
@@ -151,7 +150,7 @@ struct TaskListView: View {
                     destination = item
                 } label: {
                     HStack(spacing: 11) {
-                        Image(systemName: item.icon).font(.system(size: 15)).frame(width: 20)
+                        BeaconGlyph(kind: item.glyph).frame(width: 20, height: 20)
                         Text(item.rawValue).font(.system(size: 13, weight: destination == item ? .semibold : .regular))
                         Spacer()
                         if item != .calendar {
@@ -189,14 +188,12 @@ struct TaskListView: View {
                 }
             }
             Spacer()
-            VStack(alignment: .leading, spacing: 9) {
-                Image(systemName: "sparkle").font(.system(size: 17)).foregroundStyle(accent)
-                Text("Less to hold in your head.").font(.system(size: 14, weight: .medium, design: .serif))
-                Text("Capture a thought. Choose a time.\nLet Beacon bring it back.")
-                    .font(.system(size: 11)).foregroundStyle(Palette.secondary).lineSpacing(4)
-            }.padding(15).frame(maxWidth: .infinity, alignment: .leading)
-                .background(Palette.card.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
-                .padding(14)
+            HStack(spacing: 8) {
+                Text("New reminder")
+                Spacer()
+                Text("⌘N").monospaced()
+            }.font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                .padding(.horizontal, 25).padding(.bottom, 16)
             Button { showingSettings = true } label: {
                 Label("Settings", systemImage: "slider.horizontal.3")
                     .font(.system(size: 13)).foregroundStyle(Palette.secondary)
@@ -230,7 +227,7 @@ struct TaskListView: View {
     private var heading: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 9) {
-                Text(destination.rawValue).font(.system(size: 32, weight: .regular, design: .serif))
+                Text(destination.rawValue).font(.system(size: 30, weight: .semibold)).tracking(-0.9)
                 Text(destination.subtitle).font(.system(size: 12)).foregroundStyle(Palette.secondary)
             }
             Spacer(minLength: 12)
@@ -316,12 +313,13 @@ struct TaskListView: View {
         } else if visibleTasks.isEmpty {
             VStack(spacing: 12) {
                 Spacer()
-                Image(systemName: search.isEmpty ? destination.icon : "magnifyingglass")
-                    .font(.system(size: 30, weight: .ultraLight)).foregroundStyle(accent)
-                    .frame(width: 70, height: 70).background(accent.opacity(0.07), in: Circle())
-                Text(search.isEmpty ? "A little breathing room." : "No matching reminders")
+                Group {
+                    if search.isEmpty { BeaconGlyph(kind: destination.glyph) }
+                    else { Image(systemName: "magnifyingglass").font(.system(size: 24)) }
+                }.frame(width: 32, height: 32).foregroundStyle(accent).padding(.bottom, 8)
+                Text(search.isEmpty ? "No reminders here" : "No matching reminders")
                     .font(.system(size: 23, design: .serif))
-                Text(search.isEmpty ? "Nothing here right now. Add a thought whenever it comes." : "Try another title, note, or list name.")
+                Text(search.isEmpty ? "Use New reminder or ⌘N to add one." : "Try another title, note, or list name.")
                     .font(.system(size: 12)).foregroundStyle(Palette.secondary)
                 Spacer()
             }.frame(maxWidth: .infinity)
@@ -333,9 +331,8 @@ struct TaskListView: View {
                             HStack(spacing: 8) {
                                 Text(group.title)
                                     .font(.system(size: 12, weight: .semibold))
-                                Text("\(group.tasks.count)").font(.system(size: 10, weight: .medium))
-                                    .padding(.horizontal, 6).padding(.vertical, 3)
-                                    .background(Palette.band, in: Capsule())
+                                Text("\(group.tasks.count)").font(.system(size: 11)).monospacedDigit()
+                                    .foregroundStyle(Palette.tertiary)
                                 Spacer()
                             }.foregroundStyle(Palette.secondary)
                             VStack(spacing: 0) {
@@ -349,8 +346,8 @@ struct TaskListView: View {
                                         Task { await model.toggleMuted(task) }
                                     } edit: { editing = .existing(task) }
                                 }
-                            }.background(Palette.card, in: RoundedRectangle(cornerRadius: 12))
-                                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairline.opacity(0.7), lineWidth: 1))
+                            }
+                            .overlay(alignment: .top) { Rectangle().fill(Palette.hairline).frame(height: 1) }
                         }
                     }
                 }.padding(.horizontal, 32).padding(.bottom, 24)

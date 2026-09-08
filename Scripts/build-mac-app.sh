@@ -9,7 +9,7 @@ case "${1:-debug}" in
   *) echo "Usage: $0 [debug|release]" >&2; exit 2 ;;
 esac
 APP="build/Beacon.app"
-if [[ "${BEACON_PREVIEW:-0}" == "1" ]]; then APP="build/BeaconPreview.app"; fi
+if [[ "${BEACON_PREVIEW:-0}" == "1" ]]; then APP="build/BeaconV2Preview.app"; fi
 mkdir -p build
 if ! xcodebuild -project Beacon.xcodeproj -scheme BeaconMac \
     -configuration "$CONFIG" -destination "platform=macOS,arch=$(uname -m)" \
@@ -21,9 +21,9 @@ fi
 rm -rf "$APP"
 ditto "build/DerivedData/Build/Products/$CONFIG/Beacon.app" "$APP"
 if [[ "${BEACON_PREVIEW:-0}" == "1" ]]; then
-    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier dev.dylan.beacon.preview" "$APP/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleName Beacon Preview" "$APP/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Beacon Preview" "$APP/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier dev.dylan.beacon.v2.preview" "$APP/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName Beacon V2 Preview" "$APP/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Beacon V2 Preview" "$APP/Contents/Info.plist"
 fi
 if security find-certificate -c "Beacon Dev" >/dev/null 2>&1; then
     codesign --force --sign "Beacon Dev" --timestamp=none "$APP"

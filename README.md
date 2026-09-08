@@ -1,6 +1,6 @@
-# Beacon for Mac
+# Beacon V2 — design study
 
-A native reminder workspace over Apple Reminders, redesigned September 2026.
+A separate visual refinement of Beacon for Mac. The stable version remains on `master`. See [V2 decisions and X research](docs/V2-DESIGN.md).
 
 Start with [the redesign and research notes](docs/REDESIGN.md). The earlier architecture proposal remains in [DESIGN.md](DESIGN.md) as historical context; its milestone table and reliability claims are not the current implementation contract.
 
@@ -17,7 +17,8 @@ open build/Beacon.app
 For a design preview with sample reminders:
 
 ```sh
-open -n build/Beacon.app --args --preview
+BEACON_PREVIEW=1 ./Scripts/build-mac-app.sh
+open build/BeaconV2Preview.app
 ```
 
 The preview does not request Reminders access or save task changes. It displays a clear error if a write is attempted. Normal launch uses the existing `dev.dylan.beacon` identity and your existing preferences and sidecar.

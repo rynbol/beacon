@@ -44,15 +44,15 @@ final class TaskListModel {
     private let store = ReminderStore()
     private let sidecar = Sidecar()
     private let notifier = NotificationScheduler()
-    private let defaults = (ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.preview")
-        ? UserDefaults(suiteName: "dev.dylan.beacon.design-preview")! : .standard
+    private let defaults = (ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview")
+        ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
     private var watcher: Task<Void, Never>?
 
     var taskCount: Int { groups.reduce(0) { $0 + $1.tasks.count } }
 
     // MARK: - Lifecycle
 
-    let isPreview = (ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.preview")
+    let isPreview = (ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview")
     private var startup: Task<Void, Never>?
     private var refreshing = false
     private var refreshAgain = false
