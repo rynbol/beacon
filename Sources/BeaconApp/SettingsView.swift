@@ -3,9 +3,21 @@ import BeaconKit
 
 struct SettingsView: View {
     var model: TaskListModel
-    @Environment(\.dismiss) private var dismiss
+    let dismiss: () -> Void
 
     var body: some View {
+        ZStack {
+            Button(action: dismiss) {
+                Color.black.opacity(0.12).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel("Dismiss settings")
+            settingsCard
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .shadow(color: .black.opacity(0.14), radius: 24, y: 8)
+                .padding(24)
+        }
+    }
+
+    private var settingsCard: some View {
         ZStack {
             Palette.wash.ignoresSafeArea()
 
@@ -27,7 +39,7 @@ struct SettingsView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .frame(width: 520, height: 700)
+        .frame(width: 520).frame(maxHeight: 700)
     }
 
     private var header: some View {

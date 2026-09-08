@@ -113,15 +113,17 @@ struct TaskListView: View {
             .background(Palette.wash)
         }
         .foregroundStyle(Palette.ink)
-        .disabled(editing != nil)
-        .accessibilityHidden(editing != nil)
+        .disabled(editing != nil || showingSettings)
+        .accessibilityHidden(editing != nil || showingSettings)
         .overlay {
             if let editing {
                 TaskEditor(model: model, target: editing) { self.editing = nil }
                     .id(editing.id)
             }
+            if showingSettings {
+                SettingsView(model: model) { showingSettings = false }
+            }
         }
-        .sheet(isPresented: $showingSettings) { SettingsView(model: model) }
         .sheet(isPresented: $showingSchedule) {
             if let plan = model.plan { ScheduleView(plan: plan, accent: accent) }
         }

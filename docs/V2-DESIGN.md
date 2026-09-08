@@ -1,6 +1,6 @@
 # Beacon V2 design study
 
-Separate worktree: `beacon-v2`, branch `codex/beacon-v2`, based on `d368e92`. The original Mac app and iPhone worktree remain unchanged.
+Separate worktree: `beacon-v2`, branch `codex/beacon-v2`, based on `d368e92`. V2 was initially developed separately and then approved to replace the main Mac version. The iPhone worktree remains separate.
 
 ## Research — X, viewed in Chrome on 2026-09-08
 
@@ -19,4 +19,4 @@ Replies offer useful qualifications: [Mingta Kaivo](https://x.com/MingtaKaivo/st
 
 ## Compare safely
 
-Run `BEACON_PREVIEW=1 ./Scripts/build-mac-app.sh` and open `build/BeaconV2Preview.app`. It has a separate preview bundle identity and preferences and uses sample data; writes are disabled. This is a design comparison, not an installed replacement for the current Beacon.
+Run `BEACON_PREVIEW=1 ./Scripts/build-mac-app.sh` and open `build/BeaconV2Preview.app`. It has a separate preview bundle identity and preferences and uses sample data; writes are disabled. This isolated preview uses sample data. Build without `BEACON_PREVIEW=1` for the regular `build/Beacon.app` with the existing app identity and saved preferences.

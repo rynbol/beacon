@@ -1,6 +1,6 @@
-# Beacon V2 — design study
+# Beacon for Mac
 
-A separate visual refinement of Beacon for Mac. The stable version remains on `master`. See [V2 decisions and X research](docs/V2-DESIGN.md).
+A native reminder and calendar workspace over Apple Reminders. The V2 design is now the main version. See [design decisions and X research](docs/V2-DESIGN.md).
 
 Start with [the redesign and research notes](docs/REDESIGN.md). The earlier architecture proposal remains in [DESIGN.md](DESIGN.md) as historical context; its milestone table and reliability claims are not the current implementation contract.
 
@@ -30,7 +30,7 @@ The preview does not request Reminders access or save task changes. It displays 
 - Cmd-F searches titles, notes, and list names in the current view.
 - Use the circle to complete a task and the labeled Snooze menu to defer it.
 - Navigate All reminders, Today, Upcoming, Someday, and recently Completed in the sidebar.
-- Cmd-comma opens settings for accent, grouping, alert permissions, snooze intervals, and quiet hours.
+- Cmd-comma opens settings for accent, grouping, alert permissions, snooze intervals, and quiet hours. Click outside Settings, use its X, or press Esc to close; preferences save as you change them.
 - The footer shows Reminders connectivity and alert status. Its information button opens the scheduling plan.
 
 Tasks remain in Apple Reminders. Beacon stores preferences, snooze deadlines, and mute state locally. Completing or editing a reminder changes the Apple Reminders item. New undated captures go into Someday and stay silent until dated. Existing distant Someday dates remain readable; new Someday reminders keep a nil due date.
