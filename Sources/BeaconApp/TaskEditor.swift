@@ -40,12 +40,12 @@ enum DueChip: Identifiable, Hashable {
             let next = calendar.date(byAdding: .day, value: n, to: now) ?? now
             return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: next)
         case .someday:
-            return Settings.somedayDate(from: now, calendar: calendar)
+            return nil
         }
     }
 
     static let plain: [DueChip] = [
-        .minutes(15), .hours(1), .hours(2), .hours(4), .tomorrow, .days(7), .someday,
+        .today, .minutes(15), .hours(1), .hours(2), .hours(4), .tomorrow, .days(7), .someday,
     ]
     static let repeating: [DueChip] = [
         .today, .hours(1), .moreDays(1), .moreDays(2), .moreDays(3), .moreDays(7),
@@ -56,7 +56,7 @@ struct TaskEditor: View {
     var model: TaskListModel
     let target: EditorTarget
 
-    @Environment(\.dismiss) private var dismiss
+    let dismiss: () -> Void
     @FocusState private var titleFocused: Bool
 
     @State private var title = ""
@@ -69,16 +69,33 @@ struct TaskEditor: View {
     @State private var loaded = false
     @State private var saving = false
     @State private var dictationUnavailable = false
+    @State private var dictationStarting = false
+    @State private var dictationTask: Task<Void, Never>?
     /// Whether the user chose the time themselves. The default selection is
     /// not a choice, so a date typed into the title still overrides it.
     @State private var chipWasChosen = false
 
     private var accent: Color { model.accent.color }
-    private var isNew: Bool { if case .new = target { return true } else { return false } }
+    private var isNew: Bool { if case .existing = target { return false } else { return true } }
     private var chips: [DueChip] { recurrence == nil ? DueChip.plain : DueChip.repeating }
     private var canSave: Bool { !saving && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
+        ZStack {
+            Button(action: dismiss) {
+                Color.black.opacity(0.12).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(saving || showingDatePicker)
+            .accessibilityLabel("Dismiss reminder without saving")
+            editorCard
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .shadow(color: .black.opacity(0.14), radius: 24, y: 8)
+                .padding(24)
+        }
+    }
+
+    private var editorCard: some View {
         ZStack {
             Palette.wash.ignoresSafeArea()
 
@@ -101,14 +118,15 @@ struct TaskEditor: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .frame(width: 520, height: 670)
+        .frame(width: 520)
+        .frame(maxHeight: 670)
         .onAppear {
             load()
-            if case .new(dictate: true) = target {
-                titleFocused = true
-                dictationUnavailable = !SystemDictation.start()
+            if case .new(dictate: true, defaultDue: _) = target {
+                beginDictation()
             }
         }
+        .onDisappear { dictationTask?.cancel() }
         .popover(isPresented: $showingDatePicker) {
             VStack {
                 DatePicker(
@@ -203,7 +221,7 @@ struct TaskEditor: View {
                 Text("Detected: \(parsedDue.formatted(date: .abbreviated, time: .shortened))")
                     .font(.taskMeta).foregroundStyle(accent)
             } else {
-                Text("No time set. This reminder stays in Today.")
+                Text("No date set · Someday. Choose a date when you want a reminder.")
                     .font(.taskMeta)
                     .foregroundStyle(Palette.tertiary)
             }
@@ -213,10 +231,7 @@ struct TaskEditor: View {
     /// Focuses the field, then asks macOS to dictate into it. Beacon never
     /// touches the microphone itself.
     private var micButton: some View {
-        Button {
-            titleFocused = true
-            dictationUnavailable = !SystemDictation.start()
-        } label: {
+        Button(action: beginDictation) {
             Image(systemName: "mic")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(Palette.ink)
@@ -224,7 +239,23 @@ struct TaskEditor: View {
                 .background(Circle().fill(Palette.card))
         }
         .buttonStyle(.plain)
-        .help("Dictate into the title")
+        .disabled(dictationStarting)
+        .keyboardShortcut("m", modifiers: [.command, .shift])
+        .help("Dictate into the title · ⌘⇧M")
+        .accessibilityLabel("Dictate into the title")
+    }
+
+    private func beginDictation() {
+        guard !dictationStarting else { return }
+        titleFocused = true
+        dictationStarting = true
+        dictationUnavailable = false
+        dictationTask = Task { @MainActor in
+            let started = await SystemDictation.start()
+            guard !Task.isCancelled else { return }
+            dictationUnavailable = !started
+            dictationStarting = false
+        }
     }
 
     private var chipRow: some View {
@@ -350,7 +381,21 @@ struct TaskEditor: View {
         listID = model.selectedListID
 
         model.dismissWriteError()
-        if case .new = target { due = nil }
+        if case let .new(_, defaultDue) = target {
+            due = defaultDue
+            if let defaultDue {
+                if Calendar.current.isDateInToday(defaultDue) { chip = .today }
+                else if Calendar.current.isDateInTomorrow(defaultDue) { chip = .tomorrow }
+                else { chip = nil }
+            } else { chip = .someday }
+        }
+
+        if case let .followUp(event) = target {
+            title = "Follow up on " + event.title
+            notes = "From Calendar: " + event.start.formatted(date: .abbreviated, time: .shortened)
+            if let url = event.meetingURL { notes += "\n" + url.absoluteString }
+            due = nil; chip = .someday; chipWasChosen = true
+        }
 
         if case let .existing(task) = target {
             title = task.title
@@ -384,7 +429,7 @@ struct TaskEditor: View {
         saving = true
         Task {
             switch target {
-            case .new:
+            case .new, .followUp:
                 await model.create(
                     title: cleaned, due: chosenDue, notes: notes,
                     listID: listID, recurrence: recurrence

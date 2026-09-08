@@ -20,6 +20,8 @@
     <string>26.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Beacon shows your calendar events alongside reminders, including Google and iCloud calendars added to this Mac.</string>
     <key>NSRemindersFullAccessUsageDescription</key>
     <string>Beacon reads and writes your reminders directly, so your tasks stay in Apple Reminders and nothing is copied anywhere else.</string>
 </dict>

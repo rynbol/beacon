@@ -47,8 +47,8 @@ final class SomedayTests: XCTestCase {
         }
     }
 
-    func testUndatedAndPastDueTasksAreNeverSomeday() {
-        XCTAssertFalse(Fixture.task("a", due: nil).isSomeday(now: now, horizon: horizon))
+    func testUndatedIsSomedayButPastDueIsNot() {
+        XCTAssertTrue(Fixture.task("a", due: nil).isSomeday(now: now, horizon: horizon))
         XCTAssertFalse(
             Fixture.task("a", due: Fixture.at(2020, 1, 1, 9, 0)).isSomeday(now: now, horizon: horizon)
         )
@@ -63,7 +63,7 @@ final class SomedayTests: XCTestCase {
     func testSomedaySitsBelowEveryDatedSectionAndAboveCompleted() {
         let groups = Sections.group([
             someday("far"),
-            Fixture.task("today", due: nil),
+            Fixture.task("today", due: now),
             Fixture.task("done", completed: true),
             Fixture.task("later", due: Fixture.at(2026, 12, 1, 9, 0)),
         ], now: now, calendar: calendar)
@@ -81,7 +81,7 @@ final class SomedayTests: XCTestCase {
 
     func testGroupingByListAlsoSeparatesSomeday() {
         let groups = Sections.groupByList([
-            TaskSnapshot(key: "a", title: "a", listName: "Work"),
+            TaskSnapshot(key: "a", title: "a", listName: "Work", due: now),
             TaskSnapshot(
                 key: "b", title: "b", listName: "Work",
                 due: Settings.somedayDate(from: now, calendar: calendar), hasTimeOfDay: true
@@ -95,7 +95,7 @@ final class SomedayTests: XCTestCase {
 
     func testASomedayTaskTakesNoAlertsAtAll() {
         let plan = Scheduler.plan(
-            now: now, tasks: [someday("a"), Fixture.task("b", due: nil)],
+            now: now, tasks: [someday("a"), Fixture.task("b", due: now)],
             state: [:], settings: .default, calendar: calendar
         )
         XCTAssertFalse(plan.notifications.contains { $0.taskKey == "a" })
@@ -113,20 +113,19 @@ final class SomedayTests: XCTestCase {
         XCTAssertEqual(plan.ofKind(.ladder).count, 0)
     }
 
-    func testTheFloorStillStandsWhenEverythingIsSomeday() {
+    func testSomedayOnlyDoesNotScheduleADigest() {
         // The digest is the one thing that still speaks for them, so the list
         // itself is never forgotten.
         let plan = Scheduler.plan(
             now: now, tasks: [someday("a"), someday("b")],
             state: [:], settings: .default, calendar: calendar
         )
-        XCTAssertEqual(plan.ofKind(.digest).count, 1)
-        XCTAssertEqual(plan.notifications.count, 1)
-        XCTAssertEqual(Set(plan.beaconOverflow), ["a", "b"])
+        XCTAssertTrue(plan.notifications.isEmpty)
+        XCTAssertTrue(plan.beaconOverflow.isEmpty)
     }
 
     func testDeferringATaskFreesTheSlotItWasUsing() {
-        let tasks = (0..<3).map { Fixture.task("t\($0)", due: nil) }
+        let tasks = (0..<3).map { Fixture.task("t\($0)", due: now) }
         let before = Scheduler.plan(
             now: now, tasks: tasks, state: [:], settings: .default, calendar: calendar
         )

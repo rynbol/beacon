@@ -20,13 +20,16 @@ struct BeaconApp: App {
                 // A single, committed look: white surface, monochrome ink.
                 .preferredColorScheme(.light)
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { Task { await model.refresh() } }
+                    if phase == .active { Task { await model.refresh(); await CalendarModel.shared.refresh() } }
                 }
                 .task {
                     guard !model.isPreview, !E2ECheck.isHarnessRun else { return }
                     while !Task.isCancelled {
                         do { try await Task.sleep(for: .seconds(60)) } catch { break }
                         await model.refresh()
+                        if scenePhase == .active {
+                            await CalendarModel.shared.refresh(requestSourceRefresh: false)
+                        }
                     }
                 }
         }
@@ -35,7 +38,7 @@ struct BeaconApp: App {
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Refresh") {
-                    Task { await model.refresh() }
+                    Task { await model.refresh(); await CalendarModel.shared.refresh() }
                 }
                 .keyboardShortcut("r")
             }

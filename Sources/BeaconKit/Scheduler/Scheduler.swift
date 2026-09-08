@@ -29,7 +29,7 @@ public enum Scheduler {
         // already said is not for now — and would spend slots the near tasks
         // need. They are still counted, so the digest speaks for them.
         let active = listed.filter { !$0.isSomeday(now: now, horizon: settings.somedayHorizon) }
-        guard !listed.isEmpty else { return Plan(notifications: []) }
+        guard !active.isEmpty else { return Plan(notifications: []) }
 
         var notifications: [PlannedNotification] = []
         var budget = settings.slotBudget
@@ -39,12 +39,6 @@ public enum Scheduler {
         //    churn or drop without breaking the promise.
         notifications.append(digest(settings: settings))
         budget -= 1
-
-        guard !active.isEmpty else {
-            // Everything left is Someday. The floor still stands, and nothing
-            // else fires.
-            return Plan(notifications: notifications, beaconOverflow: listed.map(\.key))
-        }
 
         // 2. Base fire per task, grid-quantized so `now` cannot leak in.
         let bases = active.map { task -> Candidate in

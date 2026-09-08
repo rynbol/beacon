@@ -68,14 +68,13 @@ final class DeterminismTests: XCTestCase {
         XCTAssertEqual(fires.first, Fixture.at(2026, 8, 26, 10, 15))
     }
 
-    func testUndatedTasksAreScheduledNeverSilent() {
+    func testUndatedTasksStayInSomedayWithoutAlerts() {
         let plan = Scheduler.plan(
             now: Fixture.at(2026, 8, 26, 10, 0),
             tasks: [Fixture.task("a", due: nil)],
             state: [:], settings: settings, calendar: calendar
         )
-        XCTAssertEqual(plan.oneShotFires.first, Fixture.at(2026, 8, 26, 10, 15))
-        XCTAssertEqual(plan.ofKind(.taskBeacon).count, 1)
+        XCTAssertTrue(plan.notifications.isEmpty)
     }
 
     func testStableHashDoesNotVaryBetweenRuns() {

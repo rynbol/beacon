@@ -28,7 +28,7 @@ public enum ReminderAccess: Sendable, Equatable {
     case notDetermined
 }
 
-/// The only type in Beacon that touches EventKit.
+/// The reminder read/write boundary for EventKit.
 ///
 /// Everything downstream sees `TaskSnapshot` values, which is what keeps the
 /// scheduler pure and lets the entire scheduling rulebook be tested without a

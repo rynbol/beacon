@@ -29,7 +29,7 @@ enum Fixture {
     static func task(
         _ key: String,
         title: String? = nil,
-        due: Date? = nil,
+        due: Date? = Fixture.at(2026, 8, 26, 9, 0),
         recurring: Bool = false,
         completed: Bool = false
     ) -> TaskSnapshot {
@@ -44,7 +44,7 @@ enum Fixture {
         )
     }
 
-    static func tasks(_ count: Int, due: Date? = nil) -> [TaskSnapshot] {
+    static func tasks(_ count: Int, due: Date? = Fixture.at(2026, 8, 26, 9, 0)) -> [TaskSnapshot] {
         (0..<count).map { task("t\($0)", due: due) }
     }
 }

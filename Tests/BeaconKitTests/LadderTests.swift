@@ -22,7 +22,7 @@ final class LadderTests: XCTestCase {
         custom.ladder = [5 * 60, 45 * 60]
 
         let plan = Scheduler.plan(
-            now: now, tasks: [Fixture.task("a", due: nil)],
+            now: now, tasks: [Fixture.task("a", due: Fixture.at(2026, 8, 26, 9, 0))],
             state: [:], settings: custom, calendar: calendar
         )
         let fires = plan.oneShotFires
@@ -32,7 +32,7 @@ final class LadderTests: XCTestCase {
 
     func testASnoozedTaskStartsFromItsOwnRung() {
         let plan = Scheduler.plan(
-            now: now, tasks: [Fixture.task("a", due: nil)],
+            now: now, tasks: [Fixture.task("a", due: Fixture.at(2026, 8, 26, 9, 0))],
             state: ["a": TaskState(snoozeCount: 3)],
             settings: settings, calendar: calendar
         )
@@ -43,7 +43,7 @@ final class LadderTests: XCTestCase {
 
     func testRungsPerTaskAreCapped() {
         let plan = Scheduler.plan(
-            now: now, tasks: [Fixture.task("a", due: nil)],
+            now: now, tasks: [Fixture.task("a", due: Fixture.at(2026, 8, 26, 9, 0))],
             state: [:], settings: settings, calendar: calendar
         )
         XCTAssertLessThanOrEqual(plan.ofKind(.ladder).count, settings.maxLadderPerTask)
@@ -64,7 +64,7 @@ final class LadderTests: XCTestCase {
 
     func testBodyNamesTheIntervalTheSnoozeButtonWillApply() {
         let plan = Scheduler.plan(
-            now: now, tasks: [Fixture.task("a", due: nil)],
+            now: now, tasks: [Fixture.task("a", due: Fixture.at(2026, 8, 26, 9, 0))],
             state: ["a": TaskState(snoozeCount: 2)],
             settings: settings, calendar: calendar
         )
@@ -96,7 +96,7 @@ final class LadderTests: XCTestCase {
     func testAStaleAnchorFallsBackToTheGridInsteadOfFiringInThePast() {
         let plan = Scheduler.plan(
             now: now,
-            tasks: [Fixture.task("a", due: nil, recurring: true)],
+            tasks: [Fixture.task("a", due: Fixture.at(2026, 8, 26, 9, 0), recurring: true)],
             state: ["a": TaskState(snoozeCount: 0, snoozeAnchor: Fixture.at(2026, 8, 20, 9, 0))],
             settings: settings, calendar: calendar
         )

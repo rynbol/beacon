@@ -7,9 +7,9 @@ final class SectionTests: XCTestCase {
     private let calendar = Fixture.calendar
     private var now: Date { Fixture.at(2026, 8, 26, 14, 0) }
 
-    func testPastDueAndUndatedTasksLandInToday() {
+    func testPastDueTasksLandInToday() {
         // There is no overdue bucket anywhere in the app, on purpose.
-        for due in [nil, Fixture.at(2026, 1, 1, 9, 0), Fixture.at(2026, 8, 26, 9, 0)] {
+        for due in [Fixture.at(2026, 1, 1, 9, 0), Fixture.at(2026, 8, 26, 9, 0)] {
             XCTAssertEqual(
                 Sections.bucket(Fixture.task("a", due: due), now: now, calendar: calendar),
                 .today
@@ -50,9 +50,9 @@ final class SectionTests: XCTestCase {
         ]
         let groups = Sections.group(tasks, now: now, calendar: calendar)
 
-        XCTAssertEqual(groups.map(\.section), [.today, .tomorrow, .later])
-        // Undated means due now, so it sorts above a dated task in the same section.
-        XCTAssertEqual(groups[0].tasks.map(\.key), ["undated", "soon"])
+        XCTAssertEqual(groups.map(\.section), [.today, .tomorrow, .later, .someday])
+        XCTAssertEqual(groups[0].tasks.map(\.key), ["soon"])
+        XCTAssertEqual(groups.last?.tasks.map(\.key), ["undated"])
     }
 
     func testEmptySectionsAreOmitted() {
@@ -60,7 +60,7 @@ final class SectionTests: XCTestCase {
             [Fixture.task("a", due: nil)], now: now, calendar: calendar
         )
         XCTAssertEqual(groups.count, 1)
-        XCTAssertEqual(groups[0].section, .today)
+        XCTAssertEqual(groups[0].section, .someday)
     }
 
     func testPastDueReadsAsNowNotAsADate() {
@@ -73,7 +73,7 @@ final class SectionTests: XCTestCase {
         )
         XCTAssertEqual(
             Sections.relativeText(for: Fixture.task("a", due: nil), now: now, calendar: calendar),
-            "Now"
+            "Someday"
         )
     }
 

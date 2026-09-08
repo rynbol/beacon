@@ -2,13 +2,14 @@ import SwiftUI
 import BeaconKit
 
 private enum Destination: String, CaseIterable, Identifiable {
-    case all = "All reminders", today = "Today", upcoming = "Upcoming", someday = "Someday", done = "Completed"
+    case all = "All reminders", today = "Today", calendar = "Calendar", upcoming = "Upcoming", someday = "Someday", done = "Completed"
     var id: Self { self }
     var icon: String {
         switch self {
         case .all: return "tray.full"
         case .today: return "sun.max"
-        case .upcoming: return "calendar"
+        case .calendar: return "calendar"
+        case .upcoming: return "arrow.right"
         case .someday: return "leaf"
         case .done: return "checkmark.circle"
         }
@@ -17,6 +18,7 @@ private enum Destination: String, CaseIterable, Identifiable {
         switch self {
         case .all: return "A little space for everything on your mind."
         case .today: return "One thing at a time. The rest can wait."
+        case .calendar: return "Everything u have"
         case .upcoming: return "A clear view of what’s coming next."
         case .someday: return "Good ideas, waiting for their moment."
         case .done: return "A little less on your mind. Completed in the last hour."
@@ -26,6 +28,7 @@ private enum Destination: String, CaseIterable, Identifiable {
 
 struct TaskListView: View {
     var model: TaskListModel
+    private var calendarModel: CalendarModel { .shared }
     @State private var editing: EditorTarget?
     @State private var showingSettings = false
     @State private var showingSchedule = false
@@ -40,6 +43,7 @@ struct TaskListView: View {
     private func matches(_ task: TaskSnapshot, destination: Destination) -> Bool {
         let section = Sections.bucket(task, now: .now, calendar: .current)
         switch destination {
+        case .calendar: return false
         case .all: return !task.isCompleted
         case .today: return section == .today
         case .upcoming: return [.tomorrow, .next7, .next30, .later].contains(section)
@@ -80,18 +84,50 @@ struct TaskListView: View {
                 topbar
                 heading
                 banner
-                quickCapture
-                content
+                if destination == .calendar {
+                    CalendarWorkspace(model: calendarModel, search: search) { editing = .followUp($0) }
+                } else {
+                    quickCapture
+                    if destination == .today {
+                        GeometryReader { geometry in
+                            if geometry.size.width >= 740 {
+                                HStack(alignment: .top, spacing: 0) {
+                                    content
+                                    ScrollView {
+                                        TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) })
+                                    }.frame(width: 230).padding(.trailing, 32).padding(.leading, 12)
+                                }
+                            } else {
+                                VStack(spacing: 18) {
+                                    TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) }, maxEvents: 1)
+                                        .padding(.horizontal, 32)
+                                    content
+                                }
+                            }
+                        }
+                    } else { content }
+                }
                 footer
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Palette.wash)
         }
         .foregroundStyle(Palette.ink)
-        .sheet(item: $editing) { TaskEditor(model: model, target: $0) }
+        .disabled(editing != nil)
+        .accessibilityHidden(editing != nil)
+        .overlay {
+            if let editing {
+                TaskEditor(model: model, target: editing) { self.editing = nil }
+                    .id(editing.id)
+            }
+        }
         .sheet(isPresented: $showingSettings) { SettingsView(model: model) }
         .sheet(isPresented: $showingSchedule) {
             if let plan = model.plan { ScheduleView(plan: plan, accent: accent) }
+        }
+        .task { if !E2ECheck.isHarnessRun { await calendarModel.start() } }
+        .onChange(of: destination) { _, _ in
+            calendarModel.refreshAfterNavigation()
         }
         .frame(minWidth: 760, minHeight: 580)
         .background {
@@ -111,14 +147,17 @@ struct TaskListView: View {
                 .foregroundStyle(Palette.secondary).padding(.horizontal, 25).padding(.bottom, 12)
             ForEach(Destination.allCases) { item in
                 Button {
+                    if destination == item { calendarModel.refreshAfterNavigation() }
                     destination = item
                 } label: {
                     HStack(spacing: 11) {
                         Image(systemName: item.icon).font(.system(size: 15)).frame(width: 20)
                         Text(item.rawValue).font(.system(size: 13, weight: destination == item ? .semibold : .regular))
                         Spacer()
-                        Text("\(allTasks.filter { matches($0, destination: item) }.count)")
-                            .font(.system(size: 11, weight: .medium)).monospacedDigit()
+                        if item != .calendar {
+                            Text("\(allTasks.filter { matches($0, destination: item) }.count)")
+                                .font(.system(size: 11, weight: .medium)).monospacedDigit()
+                        }
                     }
                     .foregroundStyle(destination == item ? accent : Palette.secondary)
                     .padding(.horizontal, 12).frame(height: 42)
@@ -126,6 +165,28 @@ struct TaskListView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).padding(.horizontal, 12).padding(.bottom, 3)
+            }
+            if destination == .calendar || destination == .today {
+                let day = destination == .calendar ? calendarModel.selectedDay : Date.now
+                let calendars = calendarModel.feed.calendarsWithEvents(in: Calendar.current.dateInterval(of: .day, for: day)!)
+                if !calendars.isEmpty {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(calendars) { calendar in
+                                Button { calendarModel.toggleCalendar(calendar.id) } label: {
+                                    HStack(spacing: 8) {
+                                        Circle().fill(calendarModel.color(for: calendar.id)).frame(width: 7, height: 7)
+                                        Text(calendar.title).lineLimit(1)
+                                        Spacer()
+                                        if calendarModel.hiddenIDs.contains(calendar.id) { Image(systemName: "eye.slash") }
+                                    }.font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                                        .frame(minHeight: 28).contentShape(Rectangle())
+                                }.buttonStyle(.plain).help("\(calendar.title) · \(calendar.source)")
+                            }
+                        }.padding(.horizontal, 25)
+                    }.frame(maxHeight: CGFloat(min(calendars.count, 4) * 38))
+                        .padding(.top, 22)
+                }
             }
             Spacer()
             VStack(alignment: .leading, spacing: 9) {
@@ -149,6 +210,11 @@ struct TaskListView: View {
             Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                 .font(.system(size: 12)).foregroundStyle(Palette.secondary)
             Spacer()
+            Button {
+                Task { await model.refresh(); await calendarModel.refresh() }
+            } label: {
+                Image(systemName: "arrow.clockwise").frame(width: 28, height: 28)
+            }.buttonStyle(.plain).help("Refresh reminders and Calendar · ⌘R").accessibilityLabel("Refresh")
             HStack(spacing: 7) {
                 Image(systemName: "magnifyingglass")
                 TextField("Search", text: $search).textFieldStyle(.plain).focused($searchFocused)
@@ -168,7 +234,7 @@ struct TaskListView: View {
                 Text(destination.subtitle).font(.system(size: 12)).foregroundStyle(Palette.secondary)
             }
             Spacer(minLength: 12)
-            Button { editing = .new(dictate: false) } label: {
+            Button { editing = .new(dictate: false, defaultDue: newReminderDue) } label: {
                 Label("New reminder", systemImage: "plus").font(.system(size: 12, weight: .medium))
                     .padding(.horizontal, 13).padding(.vertical, 10)
                     .foregroundStyle(.white).background(accent, in: RoundedRectangle(cornerRadius: 9))
@@ -183,8 +249,11 @@ struct TaskListView: View {
                 TextField("Remind me to…", text: $capture).textFieldStyle(.plain)
                     .font(.system(size: 14)).focused($captureFocused).onSubmit(addQuickReminder)
                     .accessibilityLabel("Quick reminder")
-                Button { editing = .new(dictate: true) } label: { Image(systemName: "mic") }
-                    .buttonStyle(.plain).help("Dictate a reminder")
+                Button { editing = .new(dictate: true, defaultDue: newReminderDue) } label: { Image(systemName: "mic") }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
+                    .help("Dictate a reminder · ⌘⇧M")
+                    .accessibilityLabel("Dictate a reminder")
                 Button(action: addQuickReminder) {
                     Image(systemName: "return").font(.system(size: 12)).padding(6)
                         .background(Palette.band, in: RoundedRectangle(cornerRadius: 5))
@@ -197,17 +266,30 @@ struct TaskListView: View {
         }.padding(.horizontal, 32).padding(.bottom, 24)
     }
 
+    private var newReminderDue: Date? {
+        let now = Date.now
+        switch destination {
+        case .today: return now
+        case .upcoming: return DueChip.tomorrow.date(from: now, calendar: .current)
+        case .calendar:
+            if Calendar.current.isDate(calendarModel.selectedDay, inSameDayAs: now) { return now }
+            return Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: calendarModel.selectedDay)
+        case .all, .someday, .done: return nil
+        }
+    }
+
     private var capturePreview: String {
         let parsed = Capture.parse(capture)
-        if let due = parsed.due { return "\(parsed.title)  ·  \(due.formatted(date: .abbreviated, time: .shortened))" }
-        return "No time set · added to Today"
+        if let due = parsed.due ?? newReminderDue { return "\(parsed.title)  ·  \(due.formatted(date: .abbreviated, time: .shortened))" }
+        return "No date set · added to Someday"
     }
     private func addQuickReminder() {
         guard !capturing, !capture.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let parsed = Capture.parse(capture)
+        let due = parsed.due ?? newReminderDue
         capturing = true
         Task {
-            await model.create(title: parsed.title, due: parsed.due, notes: "", listID: nil, recurrence: nil)
+            await model.create(title: parsed.title, due: due, notes: "", listID: nil, recurrence: nil)
             if model.writeError == nil { capture = "" }
             capturing = false
         }
@@ -296,12 +378,14 @@ struct TaskListView: View {
 
 /// What the editor sheet is currently editing.
 enum EditorTarget: Identifiable {
-    case new(dictate: Bool)
+    case new(dictate: Bool, defaultDue: Date?)
+    case followUp(CalendarEventSnapshot)
     case existing(TaskSnapshot)
 
     var id: String {
         switch self {
         case .new: return "new"
+        case let .followUp(event): return "followup-" + event.id
         case let .existing(task): return task.key
         }
     }

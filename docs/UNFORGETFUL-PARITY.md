@@ -34,6 +34,6 @@ No access to the subscription interface was used. Exact layout measurements, und
 
 ## Acceptance checks
 
-Core acceptance is functional, not a screenshot: Siri-created reminder appears, undated reminders receive alerts, dismissal does not lose or reschedule a task, Snooze uses the displayed interval, repeated Complete cannot undo completion, and notification actions work when the app must launch. Live checks must use explicitly isolated test reminders. Unit tests are evidence for the planner, not delivery evidence.
+Core acceptance is functional, not a screenshot: Siri-created reminder appears, undated reminders remain silent in Someday and explicitly dated reminders receive alerts, dismissal does not lose or reschedule a task, Snooze uses the displayed interval, repeated Complete cannot undo completion, and notification actions work when the app must launch. Live checks must use explicitly isolated test reminders. Unit tests are evidence for the planner, not delivery evidence.
 
 UI access policy: only during a specific edit or test. Do not keep watching, recapturing, or activating the user's running app.

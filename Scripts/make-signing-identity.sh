@@ -7,6 +7,7 @@
 # access to Reminders and Notifications. A stable certificate keeps one identity
 # across builds, so the grants stick.
 set -euo pipefail
+umask 077
 
 NAME="Beacon Dev"
 
@@ -42,7 +43,7 @@ openssl pkcs12 -export -legacy -inkey "$TMP/key.pem" -in "$TMP/cert.pem" \
     -name "$NAME" -out "$TMP/identity.p12" -passout pass:beacon 2>/dev/null
 
 security import "$TMP/identity.p12" -k "$HOME/Library/Keychains/login.keychain-db" \
-    -P beacon -T /usr/bin/codesign -A
+    -P beacon -T /usr/bin/codesign
 
 echo "Created signing identity \"$NAME\"."
 echo

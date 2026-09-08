@@ -129,8 +129,8 @@ public enum Sections {
         somedayHorizon: TimeInterval = Settings.default.somedayHorizon
     ) -> TaskSection {
         if task.isCompleted { return .recentlyCompleted }
-        guard let due = task.due, due > now else { return .today }
         if task.isSomeday(now: now, horizon: somedayHorizon) { return .someday }
+        guard let due = task.due, due > now else { return .today }
 
         let today = calendar.startOfDay(for: now)
         let dueDay = calendar.startOfDay(for: due)
@@ -171,9 +171,8 @@ public enum Sections {
         somedayHorizon: TimeInterval = Settings.default.somedayHorizon
     ) -> String {
         if task.isCompleted { return "Done" }
-        guard let due = task.due, due > now else { return "Now" }
-        // A date ten years out is noise. What the user chose was "not now".
         if task.isSomeday(now: now, horizon: somedayHorizon) { return "Someday" }
+        guard let due = task.due, due > now else { return "Now" }
 
         let today = calendar.startOfDay(for: now)
         let dueDay = calendar.startOfDay(for: due)

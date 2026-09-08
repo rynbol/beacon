@@ -12,8 +12,8 @@ public struct TaskSnapshot: Sendable, Equatable, Identifiable {
     public let title: String
     public let listName: String
 
-    /// `nil` means the reminder carries no due date at all. Such a task still
-    /// gets scheduled — "a hidden task is a forgotten task" (DESIGN.md §2).
+    /// `nil` is an undated Someday reminder. It stays visible without alerts
+    /// until the user chooses a date, including when captured through Siri.
     public let due: Date?
 
     /// `false` when the reminder is all-day, i.e. EventKit gave us date
@@ -71,7 +71,7 @@ public struct TaskSnapshot: Sendable, Equatable, Identifiable {
     /// reminder meaningful in Apple Reminders, which is the whole point of
     /// keeping the tasks there.
     public func isSomeday(now: Date, horizon: TimeInterval) -> Bool {
-        guard let due else { return false }
+        guard let due else { return true }
         return due.timeIntervalSince(now) > horizon
     }
 }

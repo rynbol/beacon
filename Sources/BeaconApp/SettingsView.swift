@@ -14,10 +14,12 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         accentSection
+                        calendarSection
                         groupingSection
                         notificationSection
                         ladderSection
                         quietHoursSection
+                        siriSection
                         aboutSection
                     }
                     .padding(Metrics.gutter)
@@ -37,10 +39,14 @@ struct SettingsView: View {
             Spacer()
         }
         .overlay(alignment: .trailing) {
-            Button("Done") { dismiss() }
-                .buttonStyle(.plain)
-                .font(.rowLabel)
-                .foregroundStyle(model.accent.color)
+            Button { dismiss() } label: {
+                Image(systemName: "xmark").font(.system(size: 13, weight: .medium))
+                    .frame(width: 32, height: 32)
+                    .background(Palette.card, in: Circle()).contentShape(Circle())
+            }
+            .buttonStyle(.plain).keyboardShortcut(.cancelAction)
+            .accessibilityLabel("Close settings").help("Close settings · Esc")
+            .foregroundStyle(model.accent.color)
         }
         .padding(.horizontal, Metrics.gutter)
         .padding(.vertical, 14)
@@ -244,6 +250,45 @@ struct SettingsView: View {
         .labelsHidden()
         .pickerStyle(.menu)
         .fixedSize()
+    }
+
+    private var siriSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            label("Siri & dictation")
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Say “Add a reminder in Beacon,” then tell Siri what to remember.")
+                    Text("Say “Remind me to…” as usual. No date means Someday; “today,” “tomorrow,” or a time keeps that schedule.")
+                    Text("Dictate in Beacon: ⌘⇧M. The Mac’s ⌘M shortcut still minimizes the window.")
+                    Button("Open Shortcuts") {
+                        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.shortcuts") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }.buttonStyle(.link)
+                }.font(.taskMeta).foregroundStyle(Palette.secondary).padding(Metrics.gutter)
+            }
+        }
+    }
+
+    private var calendarSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            label("Calendars")
+            Card {
+                VStack(alignment: .leading, spacing: 12) {
+                    CalendarConnection(model: .shared)
+                    if CalendarModel.shared.feed.access == .granted {
+                        CalendarFilters(model: .shared)
+                    }
+                    Text("Add Google in Apple Calendar → Add Account. Beacon shows calendars synced to this Mac. Switching views, returning to Beacon, or pressing ⌘R reads them again; provider changes appear as macOS syncs them.")
+                        .font(.taskMeta).foregroundStyle(Palette.secondary)
+                    Text("Colors chosen here only change Beacon. Event alerts stay in Calendar.")
+                        .font(.taskMeta).foregroundStyle(Palette.secondary)
+                    Button("Open Apple Calendar") {
+                        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") { NSWorkspace.shared.open(url) }
+                    }.buttonStyle(.link)
+                }.padding(Metrics.gutter)
+            }
+        }
     }
 
     private var aboutSection: some View {

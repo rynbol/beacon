@@ -3,3 +3,16 @@
 *.xcuserstate
 
 build/
+
+# Local credentials, signing material, and personal Xcode settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.mobileprovision
+*.provisionprofile
+xcuserdata/
+.swiftpm/

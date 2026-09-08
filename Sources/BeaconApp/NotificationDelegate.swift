@@ -11,7 +11,7 @@ import BeaconKit
 @MainActor
 final class NotificationDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
 
-    let model = TaskListModel()
+    let model = TaskListModel.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Assigned before launch finishes, or a response that arrives while the

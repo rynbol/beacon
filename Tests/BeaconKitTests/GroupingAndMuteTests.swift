@@ -7,7 +7,7 @@ final class ListGroupingTests: XCTestCase {
     private let calendar = Fixture.calendar
     private var now: Date { Fixture.at(2026, 8, 26, 14, 0) }
 
-    private func task(_ key: String, list: String, due: Date? = nil, completed: Bool = false) -> TaskSnapshot {
+    private func task(_ key: String, list: String, due: Date? = Fixture.at(2026, 8, 26, 9, 0), completed: Bool = false) -> TaskSnapshot {
         TaskSnapshot(
             key: key, title: "Task \(key)", listName: list,
             due: due, hasTimeOfDay: due != nil, isCompleted: completed
@@ -49,12 +49,14 @@ final class ListGroupingTests: XCTestCase {
         XCTAssertEqual(groups[1].tasks.map(\.key), ["b"])
     }
 
-    func testUndatedTasksSortAboveDatedOnesInsideAList() {
+    func testUndatedTasksMoveToSomedayWhenGroupingByList() {
         let groups = Sections.groupByList([
             task("dated", list: "Work", due: Fixture.at(2026, 8, 27, 9, 0)),
-            task("undated", list: "Work"),
+            task("undated", list: "Work", due: nil),
         ], now: now, calendar: calendar)
-        XCTAssertEqual(groups[0].tasks.map(\.key), ["undated", "dated"])
+        XCTAssertEqual(groups[0].tasks.map(\.key), ["dated"])
+        XCTAssertEqual(groups[1].name, "Someday")
+        XCTAssertEqual(groups[1].tasks.map(\.key), ["undated"])
     }
 
     func testAnEmptyDatabaseProducesNoGroups() {
@@ -68,7 +70,7 @@ final class MuteTests: XCTestCase {
     private var now: Date { Fixture.at(2026, 8, 26, 14, 0) }
 
     func testAMutedTaskGetsNoAlertsAtAll() {
-        let tasks = [Fixture.task("loud", due: nil), Fixture.task("quiet", due: nil)]
+        let tasks = [Fixture.task("loud", due: Fixture.at(2026, 8, 26, 9, 0)), Fixture.task("quiet", due: Fixture.at(2026, 8, 26, 9, 0))]
         let plan = Scheduler.plan(
             now: now, tasks: tasks,
             state: ["quiet": TaskState(isMuted: true)],
@@ -82,7 +84,7 @@ final class MuteTests: XCTestCase {
         // Including the floor: a digest announcing tasks that will never alert
         // would be noise on its own.
         let plan = Scheduler.plan(
-            now: now, tasks: [Fixture.task("a", due: nil)],
+            now: now, tasks: [Fixture.task("a", due: Fixture.at(2026, 8, 26, 9, 0))],
             state: ["a": TaskState(isMuted: true)],
             settings: .default, calendar: calendar
         )
@@ -90,7 +92,7 @@ final class MuteTests: XCTestCase {
     }
 
     func testMutingDoesNotDisturbOtherTasksSchedules() {
-        let tasks = (0..<4).map { Fixture.task("t\($0)", due: nil) }
+        let tasks = (0..<4).map { Fixture.task("t\($0)", due: Fixture.at(2026, 8, 26, 9, 0)) }
         let before = Scheduler.plan(
             now: now, tasks: tasks, state: [:], settings: .default, calendar: calendar
         )
