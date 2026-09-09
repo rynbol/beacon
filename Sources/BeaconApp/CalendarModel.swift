@@ -138,7 +138,11 @@ private actor PreviewCalendarReader: CalendarReading {
             let start = calendar.date(bySettingHour: offset == 0 ? 23 : 10, minute: 30, second: 0, of: day)!
             return CalendarEventSnapshot(identifier: "sample-\(offset)", calendarID: offset % 2 == 0 ? work.id : personal.id,
                 title: ["Design review", "Dentist", "Weekly planning", "Lunch with Maya", "Project demo", "Coffee with Sam", "Sunday walk"][offset],
-                start: start, end: start.addingTimeInterval(1800), location: offset % 2 == 0 ? "Google Meet" : "Downtown",
+                start: offset == 6 ? day : start,
+                end: offset == 6 ? calendar.date(byAdding: .day, value: 1, to: day)! : start.addingTimeInterval(1800),
+                isAllDay: offset == 6,
+                location: offset % 2 == 0 ? "Google Meet" : "Downtown",
+                notes: offset == 0 ? "Review the latest screens and capture the decisions.\n\nAgenda\n• Walk through the reminder flow\n• Check the calendar layouts\n• Review keyboard access\n• Agree on follow-ups\n\nBring any open questions. These are sample notes for testing the expanded event layout." : "",
                 meetingURL: offset % 2 == 0 ? URL(string: "https://meet.google.com/example-preview") : nil)
         }
         return .loaded(calendars: [work, personal], events: events.filter { event in ranges.contains { event.overlaps($0) } })

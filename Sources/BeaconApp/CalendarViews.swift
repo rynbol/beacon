@@ -78,16 +78,10 @@ struct CalendarWorkspace: View {
                                         .font(.system(size: 13)).foregroundStyle(Palette.secondary).padding(.vertical, 32)
                                 }
                                 ForEach(events) { event in
-                                    VStack(spacing: 0) {
-                                        CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
-                                        if selectedID == event.id {
-                                            CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) {
-                                                selectedID = nil; followUp(event)
-                                            }.padding(.top, 8)
-                                        }
-                                    }
+                                    CalendarEventCard(event: event, model: model, selectedID: $selectedID, followUp: followUp)
                                 }
                             }.frame(maxWidth: .infinity)
+                                .modifier(CalendarExpansionMotion(selection: selectedID))
                         }
                     }
                 }.modifier(BeaconSectionMotion(value: model.showingUpcoming))
@@ -95,6 +89,10 @@ struct CalendarWorkspace: View {
         }.padding(.horizontal, 32).padding(.bottom, 22)
             .onChange(of: model.selectedDay) { _, _ in selectedID = nil }
             .onChange(of: model.hiddenIDs) { _, _ in selectedID = nil }
+            .onChange(of: model.showingUpcoming) { _, _ in selectedID = nil }
+            .onChange(of: events.map(\.id)) { _, ids in
+                if let selectedID, !ids.contains(selectedID) { self.selectedID = nil }
+            }
     }
     private func navigationButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -137,13 +135,14 @@ struct TodayCalendarAgenda: View {
                 }
                 if model.feed.access == .granted {
                     ForEach(Array(model.upcomingToday.prefix(maxEvents))) { event in
-                        CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
-                        if selectedID == event.id {
-                            CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) { selectedID = nil; followUp(event) }
-                        }
+                        CalendarEventCard(event: event, model: model, selectedID: $selectedID, followUp: followUp)
                     }
                 }
             }
+        }
+        .modifier(CalendarExpansionMotion(selection: selectedID))
+        .onChange(of: model.upcomingToday.prefix(maxEvents).map(\.id)) { _, ids in
+            if let selectedID, !ids.contains(selectedID) { self.selectedID = nil }
         }
     }
 }
@@ -216,28 +215,58 @@ struct CalendarFilters: View {
     }
 }
 
-struct CalendarEventRow: View {
+/// One card and one selection model across Day, Next 7 days, and Today.
+private struct CalendarEventCard: View {
     let event: CalendarEventSnapshot
     var model: CalendarModel
-    let open: () -> Void
+    @Binding var selectedID: String?
+    let followUp: (CalendarEventSnapshot) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var expanded: Bool { selectedID == event.id }
+
     var body: some View {
-        Button(action: open) {
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 2).fill(model.color(for: event.calendarID)).frame(width: 3)
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(CalendarEventFormatting.timeRange(event)).font(.system(size: 11)).foregroundStyle(Palette.secondary)
-                    Text(event.title).font(.system(size: 14, weight: .medium)).foregroundStyle(Palette.ink).multilineTextAlignment(.leading)
-                    HStack(spacing: 5) {
-                        Circle().fill(model.color(for: event.calendarID)).frame(width: 6, height: 6)
-                        Text(model.source(for: event.calendarID).map { "\($0.title) · \($0.source)" } ?? "Calendar").lineLimit(1)
-                        if event.meetingURL != nil { Image(systemName: "video") }
-                    }.font(.system(size: 10)).foregroundStyle(Palette.secondary)
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }.padding(13).frame(maxWidth: .infinity, minHeight: 80)
-                .background(Palette.card, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Palette.hairline.opacity(0.5), lineWidth: 1).allowsHitTesting(false))
-                .contentShape(Rectangle()).fixedSize(horizontal: false, vertical: true)
-        }.buttonStyle(.plain)
+        SwiftcnCard {
+            Button { selectedID = expanded ? nil : event.id } label: {
+                HStack(alignment: .center, spacing: 12) {
+                    RoundedRectangle(cornerRadius: 2).fill(model.color(for: event.calendarID))
+                        .frame(width: 3)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(event.title).font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Palette.ink).lineLimit(expanded ? nil : 2)
+                        Text(CalendarEventFormatting.timeRange(event))
+                            .font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                        Text(model.source(for: event.calendarID).map { "\($0.title) · \($0.source)" } ?? "Calendar")
+                            .font(.system(size: 10)).foregroundStyle(Palette.secondary).lineLimit(1)
+                    }.multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Palette.secondary).rotationEffect(.degrees(expanded ? 180 : 0))
+                        .frame(width: 24, height: 28)
+                }.padding(14).frame(maxWidth: .infinity, minHeight: 80)
+                    .contentShape(Rectangle()).fixedSize(horizontal: false, vertical: true)
+            }.buttonStyle(.plain)
+                .accessibilityLabel("\(event.title), \(CalendarEventFormatting.timeRange(event))")
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                .accessibilityHint(expanded ? "Collapse event details" : "Expand event details")
+            // Clip the reveal to its own region, so details emerge below the
+            // header rather than sliding over the title or neighboring events.
+            VStack(spacing: 0) {
+                if expanded {
+                    CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) {
+                        selectedID = nil
+                        followUp(event)
+                    }
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                }
+            }.clipped()
+        }.clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+private struct CalendarExpansionMotion: ViewModifier {
+    let selection: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : .easeInOut(duration: 0.26), value: selection)
     }
 }
 
@@ -246,29 +275,65 @@ private struct CalendarEventDetails: View {
     var model: CalendarModel
     let close: () -> Void
     let followUp: () -> Void
+    @State private var showingFullNotes = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var notes: String { event.notes.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                Text(event.title).font(.system(size: 16, weight: .semibold))
-                Spacer(minLength: 4)
-                Button(action: close) { Image(systemName: "xmark").frame(width: 28, height: 28).contentShape(Rectangle()) }
-                    .buttonStyle(.plain).accessibilityLabel("Close event details")
+        VStack(alignment: .leading, spacing: 14) {
+            Rectangle().fill(Palette.hairline).frame(height: 1)
+            if !event.location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "mappin.and.ellipse").frame(width: 16, height: 18)
+                        .foregroundStyle(Palette.secondary).accessibilityHidden(true)
+                    Text(event.location).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }.font(.system(size: 12))
             }
-            Text(Calendar.current.isDate(event.start, inSameDayAs: event.end)
-                 ? event.start.formatted(date: .abbreviated, time: .omitted) + " · " + CalendarEventFormatting.timeRange(event)
-                 : CalendarEventFormatting.timeRange(event))
-                .font(.system(size: 12)).foregroundStyle(Palette.secondary)
-            if !event.location.isEmpty { Label(event.location, systemImage: "mappin").font(.system(size: 12)) }
-            if !event.notes.isEmpty {
-                BeaconScrollView { Text(event.notes).font(.system(size: 12)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 100)
+            if !notes.isEmpty {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Notes").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.secondary)
+                    Text(notes).font(.system(size: 12)).lineSpacing(3)
+                        .lineLimit(showingFullNotes ? nil : 5).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // Always offer expansion: even a short string can contain
+                    // more than five lines. No nested scroll area traps scrolling.
+                    Button(showingFullNotes ? "Show less" : "Show full notes") {
+                        showingFullNotes.toggle()
+                    }.buttonStyle(.plain).font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(TaskListModel.shared.accent.color)
+                }
             }
-            if let url = event.meetingURL {
-                Button("Join meeting") { if !model.isPreview { NSWorkspace.shared.open(url) } }
-                    .disabled(model.isPreview).buttonStyle(.borderedProminent).tint(model.color(for: event.calendarID))
+            HStack(alignment: .top, spacing: 8) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { actions }
+                    VStack(alignment: .leading, spacing: 8) { actions }
+                }
+                Spacer(minLength: 0)
+                Button(action: close) {
+                    Image(systemName: "xmark").frame(width: 28, height: 32).contentShape(Rectangle())
+                }.buttonStyle(.plain).foregroundStyle(Palette.secondary)
+                    .keyboardShortcut(.cancelAction).help("Close event details · Esc")
+                    .accessibilityLabel("Close event details")
             }
-            Button("Create a follow-up reminder", action: followUp).buttonStyle(.link)
-        }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Palette.band.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+        }.padding(.leading, 29).padding(.trailing, 14).padding(.bottom, 16)
+            .foregroundStyle(Palette.ink)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showingFullNotes)
+    }
+
+    @ViewBuilder private var actions: some View {
+        if let url = event.meetingURL {
+            Button { if !model.isPreview { NSWorkspace.shared.open(url) } } label: {
+                Label("Join meeting", systemImage: "video")
+            }.buttonStyle(SwiftcnButtonStyle(variant: .primary, accent: TaskListModel.shared.accent.color))
+                .disabled(model.isPreview)
+                .help(model.isPreview ? "Meeting links are disabled in the sample preview" : "Open meeting link")
+        }
+        Button(action: followUp) {
+            Label("Follow-up reminder", systemImage: "plus")
+        }.buttonStyle(SwiftcnButtonStyle())
+            .accessibilityLabel("Create a follow-up reminder")
     }
 }
 
@@ -308,15 +373,14 @@ struct UpcomingCalendarAgenda: View {
                             Text(event.start.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
                                 .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary).padding(.top, 8)
                         }
-                        CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
-                        if selectedID == event.id {
-                            CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) {
-                                selectedID = nil; followUp(event)
-                            }
-                        }
+                        CalendarEventCard(event: event, model: model, selectedID: $selectedID, followUp: followUp)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
+                    .modifier(CalendarExpansionMotion(selection: selectedID))
             }
+        }
+        .onChange(of: events.map(\.id)) { _, ids in
+            if let selectedID, !ids.contains(selectedID) { self.selectedID = nil }
         }
     }
 }
