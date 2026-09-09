@@ -74,3 +74,171 @@ struct SwiftcnTabs<Value: Hashable>: View {
         }
     }
 }
+
+// Beacon's selection control, composed with the same surfaces as the adapted kit.
+// A native popover handles presentation and outside-click dismissal; selecting a
+// row is the only operation that changes the bound value.
+struct BeaconChoice<Value: Hashable>: Identifiable {
+    let value: Value
+    let title: String
+    var symbol: String? = nil
+    var color: Color? = nil
+    var id: Value { value }
+}
+
+extension EnvironmentValues {
+    @Entry var beaconChoicePresentation: Binding<Set<UUID>> = .constant([])
+}
+
+struct BeaconChoicePicker<Value: Hashable>: View {
+    let label: String
+    @Binding var selection: Value
+    let options: [BeaconChoice<Value>]
+    var placeholder = "Choose"
+    @State private var presentationID = UUID()
+    @State private var showing = false
+    @State private var releaseTask: Task<Void, Never>?
+    @Environment(\.beaconChoicePresentation) private var parentPresentation
+
+    private var selected: BeaconChoice<Value>? { options.first { $0.value == selection } }
+
+    var body: some View {
+        Button {
+            releaseTask?.cancel()
+            showing.toggle()
+            if showing { parentPresentation.wrappedValue.insert(presentationID) }
+        } label: {
+            HStack(spacing: 7) {
+                if let symbol = selected?.symbol {
+                    Image(systemName: symbol).foregroundStyle(selected?.color ?? Palette.secondary)
+                }
+                Text(selected?.title ?? placeholder).lineLimit(1).truncationMode(.middle)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Palette.secondary)
+            }
+        }
+        .buttonStyle(SwiftcnButtonStyle(variant: .quiet))
+        .background(showing ? Palette.control : .clear, in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityLabel(label)
+        .accessibilityValue(selected?.title ?? placeholder)
+        .disabled(options.isEmpty)
+        .onChange(of: showing) { _, value in
+            releaseTask?.cancel()
+            if value {
+                parentPresentation.wrappedValue.insert(presentationID)
+            } else {
+                // Keep parent shortcuts inactive through the native popover's
+                // closing transition; its final key event can reach the window.
+                releaseTask = Task { @MainActor in
+                    do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+                    guard !showing else { return }
+                    parentPresentation.wrappedValue.remove(presentationID)
+                }
+            }
+        }
+        .onDisappear {
+            releaseTask?.cancel()
+            if showing || releaseTask != nil { parentPresentation.wrappedValue.remove(presentationID) }
+        }
+        .popover(isPresented: $showing, arrowEdge: .bottom) {
+            BeaconChoicePanel(label: label, selection: selection, options: options) { value in
+                selection = value
+                showing = false
+            } dismiss: { showing = false }
+            .presentationBackground(Palette.card)
+        }
+    }
+}
+
+private struct BeaconChoicePanel<Value: Hashable>: View {
+    let label: String
+    let selection: Value
+    let options: [BeaconChoice<Value>]
+    let choose: (Value) -> Void
+    let dismiss: () -> Void
+    @FocusState private var focused: Int?
+    @State private var hovered: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.secondary)
+                .padding(.horizontal, 10).padding(.top, 6)
+            ScrollViewReader { proxy in
+                BeaconScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
+                            Button { choose(option.value) } label: {
+                                HStack(spacing: 9) {
+                                    if let symbol = option.symbol {
+                                        Image(systemName: symbol).frame(width: 16)
+                                            .foregroundStyle(option.color ?? Palette.secondary)
+                                    }
+                                    Text(option.title).lineLimit(2).multilineTextAlignment(.leading)
+                                    Spacer(minLength: 12)
+                                    Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold))
+                                        .opacity(selection == option.value ? 1 : 0)
+                                }
+                                .font(.system(size: 13)).foregroundStyle(Palette.ink)
+                                .padding(.horizontal, 10).frame(minHeight: 34)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(focused == index || hovered == index ? Palette.control : .clear,
+                                            in: RoundedRectangle(cornerRadius: 6))
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain).focusable().focused($focused, equals: index).focusEffectDisabled()
+                            .onHover { hovered = $0 ? index : nil }
+                            .accessibilityAddTraits(selection == option.value ? .isSelected : [])
+                            .id(index)
+                        }
+                    }
+                }
+                .frame(height: min(max(0, CGFloat(options.count) * 36 - 2), 286))
+                .onAppear {
+                    focused = options.firstIndex { $0.value == selection } ?? 0
+                    if let focused { proxy.scrollTo(focused, anchor: .center) }
+                }
+                .onChange(of: focused) { _, value in
+                    if let value { proxy.scrollTo(value) }
+                }
+            }
+        }
+        .padding(8).frame(width: 238)
+        .onMoveCommand { direction in
+            guard !options.isEmpty else { return }
+            if direction == .down { focused = min((focused ?? -1) + 1, options.count - 1) }
+            if direction == .up { focused = max((focused ?? 1) - 1, 0) }
+        }
+        .onKeyPress(.return) {
+            guard let focused, options.indices.contains(focused) else { return .ignored }
+            choose(options[focused].value)
+            return .handled
+        }
+        .onExitCommand(perform: dismiss)
+    }
+}
+
+struct BeaconStepper: View {
+    let label: String
+    var canDecrease = true
+    var canIncrease = true
+    let decrease: () -> Void
+    let increase: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            step("minus", name: "Decrease", enabled: canDecrease, action: decrease)
+            Rectangle().fill(Palette.hairline).frame(width: 1, height: 14)
+            step("plus", name: "Increase", enabled: canIncrease, action: increase)
+        }
+        .background(Palette.control, in: RoundedRectangle(cornerRadius: 7))
+        .fixedSize()
+    }
+
+    private func step(_ symbol: String, name: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Palette.ink).frame(width: 30, height: 28)
+                .contentShape(Rectangle()).opacity(enabled ? 1 : 0.35)
+        }.buttonStyle(.plain).disabled(!enabled).accessibilityLabel("\(name) \(label)")
+    }
+}

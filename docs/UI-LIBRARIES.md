@@ -41,3 +41,13 @@ Sample-data preview checked editor appearance, disabled Save, selecting Tomorrow
 Settings → Appearance now holds coordinated Paper, Mist, Beige, and Dark background presets, independent highlight swatches, reminder grouping, and urgency color wells. Siri and About remain available in Help. The shared palette updates the workspace, sidebar, cards, editors, and settings immediately. Native controls follow the selected light/dark scheme. Theme choice persists locally, with a separate preview preferences domain. Custom urgency colors remain untouched; Dark adapts the default accents and urgency colors.
 
 Verification: all 128 unit tests pass, including primary/secondary text contrast against all three surfaces of every preset. Normal and sample-preview Mac builds pass. The sample preview verified theme switching, Dark native controls and reminder readability, and Beige persistence after quitting and reopening. Preview was restored to Paper and closed. This targeted theme check does not represent the broader end-to-end audit, which remains paused.
+
+## Editing selections
+
+BeaconChoicePicker is a Beacon component composed with the existing Swiftcn-adapted button styling and shared scrolling surface; it is not an upstream Swiftcn component or an additional package. It replaces the menu-style pickers for urgency, reminder list, repeat frequency/end condition, reminder grouping, quiet hours, and the editor's Later choices. Popovers use the current theme, selected checkmarks, optional urgency symbols/colors, and a bounded scrolling list that opens at the selected value. Native buttons retain accessibility labels and selected traits; arrow keys move focus and Return selects. Escape and outside clicks cancel without updating the binding.
+
+Parent Save/Close shortcuts and outside dismissal are guarded while choosing and for the 250 ms native closing transition. Each picker owns a separate presentation token, so closing one cannot unlock the parent while another is open. The guard was added after reproducing quick Escape dismissing Settings along with its popover.
+
+BeaconStepper replaces the small native spinner in snooze intervals and repeat interval/count rows with consistent minus/plus buttons. Existing bounds and model operations remain in place. Date/calendar and color-well controls remain native, as do reminder action/context menus. No new dependency was added.
+
+Primary API references: [SwiftUI move commands](https://developer.apple.com/documentation/swiftui/view/onmovecommand(perform:)) and [modal presentation APIs](https://developer.apple.com/documentation/swiftui/modal-presentations).

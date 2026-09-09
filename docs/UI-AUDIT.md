@@ -64,3 +64,17 @@ Rechecked in the isolated preview at a compact native quarter-tile window (appro
 After these fixes, all 128 unit tests and all 27 app integration checks passed again. The normal app and sample preview built successfully, and the integration harness confirmed its temporary reminders were removed.
 
 These checks cover the reproduced alignment issues, not every window size or system display configuration. The layout changes do not alter reminder or Calendar data rules.
+
+## Selection-control follow-up
+
+Replaced the editor/Settings menu pickers with a shared themed choice popover and replaced snooze/repeat spinners with consistent minus/plus controls. Purposeful checks ran in the isolated sample preview:
+
+- Urgency: click selection, arrow/Return selection, current checkmark, Escape cancellation, and Return with a filled draft (no Save attempt).
+- List: Personal to Work updates the draft. Later: choosing 1 hour updates the displayed due time.
+- Repeat: Weekly to Monthly, interval 1 to 2, ending after a count, count 10 to 9; the rule and upcoming dates update together.
+- Grouping: By time to By list and back. Quiet hours: selected hour scrolls into view; keyboard selection at the last hour stays in bounds; restored 22:00–08:00 afterward.
+- Snooze: first interval changes from 15 to 30 minutes and back.
+- Popovers: light and Dark surfaces inspected; the hour list uses the shared thin overlay scroller. Clicking Notes dismisses a picker without discarding the draft.
+- A fast Up → Escape sequence initially dismissed Settings too. Guarding parent shortcuts through the native closing transition fixed that reproduced sequence; Settings remained open and its value unchanged. Parent shortcuts become available again after the picker closes.
+
+All test drafts were discarded, preview preferences restored, and the preview closed. The 128-unit-test suite passed; preview and normal app builds passed. This follow-up verified editor bindings and UI interactions, not live EventKit writes or notification delivery; the earlier integration results are recorded separately above.

@@ -80,14 +80,8 @@ struct RepeatCard: View {
         HStack {
             Text("Repeat").font(.rowLabel).foregroundStyle(Palette.ink)
             Spacer()
-            Picker("Repeat frequency", selection: $recurrence.frequency) {
-                ForEach(Recurrence.Frequency.allCases, id: \.self) { frequency in
-                    Text(frequency.title).tag(frequency)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .fixedSize()
+            BeaconChoicePicker(label: "Repeat frequency", selection: $recurrence.frequency,
+                options: Recurrence.Frequency.allCases.map { BeaconChoice(value: $0, title: $0.title) })
         }
         .padding(.horizontal, Metrics.gutter)
         .frame(height: 46)
@@ -97,18 +91,10 @@ struct RepeatCard: View {
         HStack {
             Text(intervalLabel).font(.rowLabel).foregroundStyle(Palette.ink)
             Spacer()
-            HStack(spacing: 0) {
-                stepperButton("minus") {
-                    recurrence.interval = max(1, recurrence.interval - 1)
-                }
-                Rectangle().fill(Palette.hairline).frame(width: 1, height: 16)
-                stepperButton("plus") {
-                    recurrence.interval = min(99, recurrence.interval + 1)
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Palette.control)
-            )
+            BeaconStepper(label: "repeat interval",
+                canDecrease: recurrence.interval > 1, canIncrease: recurrence.interval < 99,
+                decrease: { recurrence.interval = max(1, recurrence.interval - 1) },
+                increase: { recurrence.interval = min(99, recurrence.interval + 1) })
         }
         .padding(.horizontal, Metrics.gutter)
         .frame(height: 46)
@@ -118,18 +104,6 @@ struct RepeatCard: View {
         recurrence.interval == 1
             ? "Every \(recurrence.frequency.singular)"
             : "Every \(recurrence.interval) \(recurrence.frequency.plural)"
-    }
-
-    private func stepperButton(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Palette.ink)
-                .frame(width: 34, height: 26)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(symbol == "minus" ? "Decrease repeat interval" : "Increase repeat interval")
     }
 
     private var weekdayRow: some View {
@@ -160,26 +134,20 @@ struct RepeatCard: View {
         HStack {
             Text("End Repeat").font(.rowLabel).foregroundStyle(Palette.ink)
             Spacer()
-            Picker("End repeat", selection: endSelection) {
-                Text("Never").tag(0)
-                Text("After a count").tag(1)
-                Text("On a date").tag(2)
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .fixedSize()
+            BeaconChoicePicker(label: "End repeat", selection: endSelection, options: [
+                BeaconChoice(value: 0, title: "Never"),
+                BeaconChoice(value: 1, title: "After a count"),
+                BeaconChoice(value: 2, title: "On a date")
+            ])
 
             if case let .after(count) = recurrence.end {
                 Text("\(count)")
                     .font(.rowLabel)
                     .monospacedDigit()
                     .foregroundStyle(Palette.secondary)
-                Stepper("Repeat count") {
-                    recurrence.end = .after(min(99, count + 1))
-                } onDecrement: {
-                    recurrence.end = .after(max(1, count - 1))
-                }
-                .labelsHidden()
+                BeaconStepper(label: "repeat count", canDecrease: count > 1, canIncrease: count < 99,
+                    decrease: { recurrence.end = .after(max(1, count - 1)) },
+                    increase: { recurrence.end = .after(min(99, count + 1)) })
             }
         }
         .padding(.horizontal, Metrics.gutter)

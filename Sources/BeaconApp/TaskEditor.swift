@@ -67,6 +67,8 @@ struct TaskEditor: View {
     @State private var urgency: Urgency = .none
     @State private var listID: String?
     @State private var showingDatePicker = false
+    @State private var activeChoices: Set<UUID> = []
+    private var choosingOption: Bool { !activeChoices.isEmpty }
     @State private var loaded = false
     @State private var saving = false
     @State private var dictationUnavailable = false
@@ -87,13 +89,13 @@ struct TaskEditor: View {
                 Color.black.opacity(0.12).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(saving || showingDatePicker)
+            .disabled(saving || showingDatePicker || choosingOption)
             .accessibilityLabel("Dismiss reminder without saving")
             editorCard
                 .clipShape(RoundedRectangle(cornerRadius: 18))
                 .shadow(color: .black.opacity(0.14), radius: 24, y: 8)
                 .padding(24)
-        }
+        }.environment(\.beaconChoicePresentation, $activeChoices)
     }
 
     private var editorCard: some View {
@@ -159,12 +161,12 @@ struct TaskEditor: View {
                         .foregroundStyle(Palette.ink).frame(width: 32, height: 32)
                         .background(Circle().fill(Palette.card.opacity(0.8)))
                 }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
-                    .accessibilityLabel("Close reminder").disabled(saving)
+                    .accessibilityLabel("Close reminder").disabled(saving || choosingOption)
             }
             .overlay(alignment: .trailing) {
                 Button(saving ? "Saving…" : "Save", action: save)
                     .buttonStyle(SwiftcnButtonStyle(variant: .primary, accent: accent))
-                    .disabled(!canSave).keyboardShortcut(.defaultAction)
+                    .disabled(!canSave || choosingOption).keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, Metrics.gutter).padding(.vertical, 12)
     }
@@ -258,14 +260,14 @@ struct TaskEditor: View {
                 chipWasChosen = true
                 showingDatePicker = true
             }
-            Menu {
-                ForEach(chips.filter { !prominent.contains($0) }) { option in
-                    Button(option.label) { choose(option) }
-                }
-            } label: {
-                Text(chip.map { prominent.contains($0) ? "Later" : $0.label } ?? "Later")
-                    .font(.system(size: 12)).foregroundStyle(accent)
-            }.menuStyle(.borderlessButton).fixedSize().frame(height: 32).accessibilityLabel("More reminder times")
+            BeaconChoicePicker(
+                label: "More reminder times",
+                selection: Binding(get: { chip }, set: { if let option = $0 { choose(option) } }),
+                options: chips.filter { !prominent.contains($0) }.map {
+                    BeaconChoice(value: Optional($0), title: $0.label)
+                },
+                placeholder: "Later"
+            )
         }
     }
 
@@ -296,11 +298,12 @@ struct TaskEditor: View {
                     .foregroundStyle(UrgencyColors.shared.color(for: urgency)).frame(width: Metrics.formIcon)
                 Text("Urgency").font(.rowLabel)
                 Spacer()
-                Picker("Urgency", selection: $urgency) {
-                    ForEach(Urgency.allCases, id: \.self) { level in
-                        Label(level.title, systemImage: level == .none ? "circle.slash" : "flag").tag(level)
-                    }
-                }.labelsHidden().pickerStyle(.menu).fixedSize().font(.rowLabel)
+                BeaconChoicePicker(label: "Urgency", selection: $urgency,
+                    options: Urgency.allCases.map {
+                        BeaconChoice(value: $0, title: $0.title,
+                                     symbol: $0 == .none ? "circle.slash" : "flag",
+                                     color: UrgencyColors.shared.color(for: $0))
+                    })
             }.padding(.horizontal, Metrics.gutter).frame(height: 46)
             if model.lists.count > 1 {
                 InsetDivider(leading: Metrics.formTextInset)
@@ -311,14 +314,8 @@ struct TaskEditor: View {
                         .frame(width: Metrics.formIcon)
                     Text("List").font(.rowLabel)
                     Spacer()
-                    Picker("Reminder list", selection: $listID) {
-                        ForEach(model.lists, id: \.id) { list in
-                            Text(list.title).tag(Optional(list.id))
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu).fixedSize()
-                    .font(.rowLabel)
+                    BeaconChoicePicker(label: "Reminder list", selection: $listID,
+                        options: model.lists.map { BeaconChoice(value: Optional($0.id), title: $0.title) })
                 }
                 .padding(.horizontal, Metrics.gutter)
                 .frame(height: 46)

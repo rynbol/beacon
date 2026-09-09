@@ -8,17 +8,19 @@ struct SettingsView: View {
     var initiallyNotifications = false
     private enum Section: String, CaseIterable { case appearance = "Appearance", calendars = "Calendars", alerts = "Notifications", snooze = "Snooze", help = "Help" }
     @State private var section: Section = .appearance
+    @State private var activeChoices: Set<UUID> = []
+    private var choosingOption: Bool { !activeChoices.isEmpty }
 
     var body: some View {
         ZStack {
             Button(action: dismiss) {
                 Color.black.opacity(0.12).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel("Dismiss settings")
+            }.buttonStyle(.plain).accessibilityLabel("Dismiss settings").disabled(choosingOption)
             settingsCard
                 .clipShape(RoundedRectangle(cornerRadius: 18))
                 .shadow(color: .black.opacity(0.14), radius: 24, y: 8)
                 .padding(24)
-        }
+        }.environment(\.beaconChoicePresentation, $activeChoices)
     }
 
     private var settingsCard: some View {
@@ -50,7 +52,7 @@ struct SettingsView: View {
                             .frame(width: 28, height: 28).contentShape(Rectangle())
                     }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
                         .foregroundStyle(Palette.secondary)
-                        .accessibilityLabel("Close settings").help("Close settings · Esc")
+                        .accessibilityLabel("Close settings").help("Close settings · Esc").disabled(choosingOption)
                 }.padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 16)
                 BeaconScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -188,9 +190,9 @@ struct SettingsView: View {
         HStack {
             Text("Group reminders").font(.system(size: 13, weight: .semibold))
             Spacer()
-            Picker("Group reminders", selection: Binding(get: { model.grouping }, set: { model.setGrouping($0) })) {
-                ForEach(Grouping.allCases) { Text($0.title).tag($0) }
-            }.labelsHidden().pickerStyle(.menu).fixedSize()
+            BeaconChoicePicker(label: "Group reminders",
+                selection: Binding(get: { model.grouping }, set: { model.setGrouping($0) }),
+                options: Grouping.allCases.map { BeaconChoice(value: $0, title: $0.title) })
         }.padding(.vertical, 4)
     }
 
@@ -206,12 +208,9 @@ struct SettingsView: View {
                         Text(IntervalText.short(interval))
                             .font(.rowLabel).monospacedDigit()
                             .foregroundStyle(Palette.secondary)
-                        Stepper("Snooze \(index + 1) interval") {
-                            model.adjustLadder(at: index, by: 1)
-                        } onDecrement: {
-                            model.adjustLadder(at: index, by: -1)
-                        }
-                        .labelsHidden()
+                        BeaconStepper(label: "Snooze \(index + 1) interval",
+                            decrease: { model.adjustLadder(at: index, by: -1) },
+                            increase: { model.adjustLadder(at: index, by: 1) })
                     }
                     .padding(.horizontal, Metrics.gutter)
                     .frame(height: 42)
@@ -262,14 +261,8 @@ struct SettingsView: View {
     }
 
     private func hourPicker(label: String, value: Binding<Int>) -> some View {
-        Picker(label, selection: value) {
-            ForEach(0..<24, id: \.self) { hour in
-                Text(String(format: "%02d:00", hour)).tag(hour)
-            }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .fixedSize()
+        BeaconChoicePicker(label: label, selection: value,
+            options: (0..<24).map { BeaconChoice(value: $0, title: String(format: "%02d:00", $0)) })
     }
 
     private var siriSection: some View {
