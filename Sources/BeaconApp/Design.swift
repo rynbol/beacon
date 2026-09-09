@@ -21,7 +21,16 @@ enum Accent: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var color: Color {
+    @MainActor var color: Color {
+        if AppearanceStore.shared.theme == .dark {
+            switch self {
+            case .ocean: return Color(hex: 0x8ABFBA)
+            case .terracotta: return Color(hex: 0xDFA889)
+            case .olive: return Color(hex: 0xB7C68B)
+            case .indigo: return Color(hex: 0xADB9E1)
+            case .espresso: return Color(hex: 0xC8B3A0)
+            }
+        }
         switch self {
         case .ocean: return Color(red: 0.16, green: 0.39, blue: 0.40)
         case .terracotta: return Color(red: 0.65, green: 0.33, blue: 0.17)
@@ -32,20 +41,39 @@ enum Accent: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// A warm, paper-like surface. Beige rather than white so the tinted section
-/// bands and the white task rows can separate from the ground without a single
-/// hard line.
-enum Palette {
-    static let washTop = Color(red: 0.973, green: 0.969, blue: 0.953)
-    static let washBottom = washTop
-    static let card = Color(red: 0.998, green: 0.996, blue: 0.986)
-    static let band = Color(red: 0.941, green: 0.943, blue: 0.925)
-    static let ink = Color(red: 0.16, green: 0.21, blue: 0.22)
-    static let secondary = Color(red: 0.39, green: 0.44, blue: 0.44)
-    static let tertiary = Color(red: 0.49, green: 0.53, blue: 0.52)
-    static let hairline = Color(red: 0.87, green: 0.89, blue: 0.87)
-    static let chipRest = Color(red: 0.92, green: 0.94, blue: 0.91)
-    static let control = band
+@MainActor @Observable
+final class AppearanceStore {
+    static let shared = AppearanceStore()
+    private let defaults: UserDefaults
+    var theme: AppearanceTheme {
+        didSet { defaults.set(theme.rawValue, forKey: "appearanceTheme") }
+    }
+    private init() {
+        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview"
+        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
+        theme = AppearanceTheme(rawValue: defaults.string(forKey: "appearanceTheme") ?? "") ?? .paper
+    }
+}
+
+extension Color {
+    init(hex: UInt32) {
+        self.init(red: Double((hex >> 16) & 255) / 255, green: Double((hex >> 8) & 255) / 255, blue: Double(hex & 255) / 255)
+    }
+}
+
+@MainActor enum Palette {
+    private static var colors: ThemePalette { AppearanceStore.shared.theme.palette }
+    static var washTop: Color { Color(hex: colors.canvas) }
+    static var washBottom: Color { washTop }
+    static var card: Color { Color(hex: colors.surface) }
+    static var band: Color { Color(hex: colors.sidebar) }
+    static var ink: Color { Color(hex: colors.text) }
+    static var secondary: Color { Color(hex: colors.secondary) }
+    static var tertiary: Color { secondary }
+    static var hairline: Color { Color(hex: colors.border) }
+    static var chipRest: Color { band }
+    static var control: Color { band }
+    static var onAccent: Color { AppearanceStore.shared.theme == .dark ? Color(hex: 0x202625) : .white }
     static var wash: LinearGradient {
         LinearGradient(colors: [washTop, washBottom], startPoint: .top, endPoint: .bottom)
     }
@@ -214,6 +242,14 @@ final class UrgencyColors {
            rgb.allSatisfy({ $0.isFinite && (0...1).contains($0) }) {
             return Color(red: rgb[0], green: rgb[1], blue: rgb[2])
         }
+        if AppearanceStore.shared.theme == .dark {
+            switch urgency {
+            case .none: return Palette.secondary
+            case .low: return Color(hex: 0x95B9D8)
+            case .medium: return Color(hex: 0xDFC078)
+            case .high: return Color(hex: 0xE59C91)
+            }
+        }
         switch urgency {
         case .none: return Palette.secondary
         case .low: return Color(red: 0.35, green: 0.49, blue: 0.62)
@@ -235,18 +271,57 @@ final class UrgencyColors {
 struct UrgencyColorSettings: View {
     private var colors: UrgencyColors { .shared }
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Urgency colors").font(.fieldLabel).foregroundStyle(Palette.secondary)
-            ForEach([Urgency.low, .medium, .high], id: \.self) { urgency in
-                ColorPicker(selection: Binding(get: { colors.color(for: urgency) }, set: { colors.set($0, for: urgency) }), supportsOpacity: false) {
-                    Label(urgency.title, systemImage: "flag").foregroundStyle(colors.color(for: urgency))
-                }.font(.taskMeta)
-                    .introspect(.colorPicker, on: .macOS(.v26)) { well in
-                        well.colorWellStyle = .minimal
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Urgency").font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button("Reset") { colors.reset() }.buttonStyle(.plain)
+                    .font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                    .accessibilityLabel("Reset urgency colors")
             }
-            Button("Reset colors") { colors.reset() }.buttonStyle(.plain)
-                .font(.system(size: 11)).foregroundStyle(Palette.secondary)
+            ForEach([Urgency.low, .medium, .high], id: \.self) { urgency in
+                HStack {
+                    Image(systemName: "flag").foregroundStyle(colors.color(for: urgency)).frame(width: 18)
+                    Text(urgency.title).foregroundStyle(Palette.secondary)
+                    Spacer()
+                    ColorPicker(urgency.title, selection: Binding(get: { colors.color(for: urgency) }, set: { colors.set($0, for: urgency) }), supportsOpacity: false)
+                        .labelsHidden().frame(width: 46)
+                        .accessibilityLabel("\(urgency.title) urgency color")
+                        .introspect(.colorPicker, on: .macOS(.v26)) { $0.colorWellStyle = .minimal }
+                }.font(.system(size: 12)).frame(height: 28)
+            }
+        }
+    }
+}
+
+struct ThemePicker: View {
+    private var appearance: AppearanceStore { .shared }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Background").font(.system(size: 13, weight: .semibold))
+            HStack(spacing: 10) {
+                ForEach(AppearanceTheme.allCases, id: \.self) { theme in
+                    Button { appearance.theme = theme } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 0) {
+                                Color(hex: theme.palette.sidebar).frame(width: 20)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Capsule().fill(Color(hex: theme.palette.text)).frame(width: 28, height: 3)
+                                    RoundedRectangle(cornerRadius: 3).fill(Color(hex: theme.palette.surface)).frame(height: 13)
+                                    RoundedRectangle(cornerRadius: 3).fill(Color(hex: theme.palette.surface)).frame(height: 13)
+                                }.padding(8).frame(maxWidth: .infinity).background(Color(hex: theme.palette.canvas))
+                            }.frame(height: 64).clipShape(RoundedRectangle(cornerRadius: 7))
+                                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(appearance.theme == theme ? Palette.ink : Palette.hairline, lineWidth: appearance.theme == theme ? 2 : 1))
+                            HStack {
+                                Text(theme.title)
+                                Spacer(minLength: 0)
+                                if appearance.theme == theme { Image(systemName: "checkmark").font(.system(size: 9, weight: .semibold)) }
+                            }.font(.system(size: 11)).foregroundStyle(Palette.ink)
+                        }.contentShape(Rectangle())
+                    }.buttonStyle(.plain).accessibilityLabel("\(theme.title) theme")
+                        .accessibilityAddTraits(appearance.theme == theme ? .isSelected : [])
+                }
+            }
         }
     }
 }

@@ -5,8 +5,8 @@ struct SettingsView: View {
     var model: TaskListModel
     let dismiss: () -> Void
     var initiallyCalendars = false
-    private enum Section: String, CaseIterable { case general = "General", calendars = "Calendars", alerts = "Alerts" }
-    @State private var section: Section = .general
+    private enum Section: String, CaseIterable { case appearance = "Appearance", calendars = "Calendars", alerts = "Alerts", help = "Help" }
+    @State private var section: Section = .appearance
 
     var body: some View {
         ZStack {
@@ -32,10 +32,14 @@ struct SettingsView: View {
                 BeaconScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         switch section {
-                        case .general:
+                        case .appearance:
+                            ThemePicker()
+                            Divider()
                             accentSection
                             groupingSection
+                            Divider()
                             UrgencyColorSettings()
+                        case .help:
                             siriSection
                             aboutSection
                         case .calendars:
@@ -83,21 +87,19 @@ struct SettingsView: View {
     }
 
     private var accentSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            label("Accent")
-            Card {
-                FlowRow(spacing: 8) {
-                    ForEach(Accent.allCases) { option in
-                        Chip(
-                            label: option.title,
-                            isSelected: model.accent == option,
-                            accent: option.color
-                        ) {
-                            model.setAccent(option)
-                        }
-                    }
+        HStack {
+            Text("Highlight").font(.system(size: 13, weight: .semibold))
+            Spacer()
+            HStack(spacing: 10) {
+                ForEach(Accent.allCases) { option in
+                    Button { model.setAccent(option) } label: {
+                        RoundedRectangle(cornerRadius: 7).fill(option.color).frame(width: 30, height: 30)
+                            .overlay {
+                                if model.accent == option { Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.onAccent) }
+                            }
+                    }.buttonStyle(.plain).help(option.title).accessibilityLabel("\(option.title) highlight")
+                        .accessibilityAddTraits(model.accent == option ? .isSelected : [])
                 }
-                .padding(Metrics.gutter)
             }
         }
     }
@@ -179,25 +181,13 @@ struct SettingsView: View {
     }
 
     private var groupingSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            label("Grouping")
-            Card {
-                FlowRow(spacing: 8) {
-                    ForEach(Grouping.allCases) { option in
-                        Chip(
-                            label: option.title,
-                            isSelected: model.grouping == option,
-                            accent: model.accent.color
-                        ) {
-                            model.setGrouping(option)
-                        }
-                    }
-                }
-                .padding(Metrics.gutter)
-            }
-            Text("By time asks when a task is due. By list keeps your Reminders lists as headings.")
-                .font(.taskMeta).foregroundStyle(Palette.tertiary)
-        }
+        HStack {
+            Text("Group reminders").font(.system(size: 13, weight: .semibold))
+            Spacer()
+            Picker("Group reminders", selection: Binding(get: { model.grouping }, set: { model.setGrouping($0) })) {
+                ForEach(Grouping.allCases) { Text($0.title).tag($0) }
+            }.labelsHidden().pickerStyle(.menu).fixedSize()
+        }.padding(.vertical, 4)
     }
 
     private var ladderSection: some View {

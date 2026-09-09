@@ -463,7 +463,7 @@ struct TaskRow: View {
                                 .frame(width: Metrics.circle, height: Metrics.circle)
                             Image(systemName: "checkmark")
                                 .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(Color.white)
+                                .foregroundStyle(Palette.onAccent)
                         } else {
                             Circle().strokeBorder(accent.opacity(0.55), lineWidth: 1.5)
                                 .frame(width: Metrics.circle, height: Metrics.circle)

@@ -17,8 +17,8 @@ struct BeaconApp: App {
                     guard !E2ECheck.isHarnessRun else { return }
                     await model.start()
                 }
-                // A single, committed look: white surface, monochrome ink.
-                .preferredColorScheme(.light)
+                // Coordinate native controls with the selected background preset.
+                .preferredColorScheme(AppearanceStore.shared.theme == .dark ? .dark : .light)
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { Task { await model.refresh(); await CalendarModel.shared.refresh() } }
                 }

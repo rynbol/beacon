@@ -35,3 +35,9 @@ Applied across:
 The sidebar, main arrangement, completion control, urgency semantics, and background theme are unchanged. Native menus, date pickers, toggles, and scrollbars are retained where replacing behavior would add risk without a visual benefit. No new remote dependency, script, or runtime network access is introduced by the copy-in kit.
 
 Sample-data preview checked editor appearance, disabled Save, selecting Tomorrow (9 AM), Settings tab switching and keyword fields, and Calendar Day / Next 7 days navigation. All previews and X research tabs were closed afterward; no live reminders were modified.
+
+## Background themes
+
+Settings → Appearance now holds coordinated Paper, Mist, Beige, and Dark background presets, independent highlight swatches, reminder grouping, and urgency color wells. Siri and About remain available in Help. The shared palette updates the workspace, sidebar, cards, editors, and settings immediately. Native controls follow the selected light/dark scheme. Theme choice persists locally, with a separate preview preferences domain. Custom urgency colors remain untouched; Dark adapts the default accents and urgency colors.
+
+Verification: all 128 unit tests pass, including primary/secondary text contrast against all three surfaces of every preset. Normal and sample-preview Mac builds pass. The sample preview verified theme switching, Dark native controls and reminder readability, and Beige persistence after quitting and reopening. Preview was restored to Paper and closed. This targeted theme check does not represent the broader end-to-end audit, which remains paused.

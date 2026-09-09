@@ -14,7 +14,7 @@ struct SwiftcnButtonStyle: ButtonStyle {
         configuration.label
             .font(.system(size: 12, weight: .medium))
             .padding(.horizontal, 12).frame(minHeight: 32)
-            .foregroundStyle(variant == .primary ? Color.white : accent)
+            .foregroundStyle(variant == .primary ? Palette.onAccent : accent)
             .background(variant == .primary ? accent : variant == .outline ? Palette.card : .clear,
                         in: RoundedRectangle(cornerRadius: 8))
             .overlay {
