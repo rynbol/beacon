@@ -31,6 +31,7 @@ struct TaskListView: View {
     private var calendarModel: CalendarModel { .shared }
     @State private var editing: EditorTarget?
     @State private var showingSettings = false
+    @State private var settingsStartsWithCalendars = false
     @State private var showingSchedule = false
     @State private var destination: Destination = .all
     @State private var search = ""
@@ -85,7 +86,10 @@ struct TaskListView: View {
                 heading
                 banner
                 if destination == .calendar {
-                    CalendarWorkspace(model: calendarModel, search: search) { editing = .followUp($0) }
+                    CalendarWorkspace(model: calendarModel, search: search, followUp: { editing = .followUp($0) }, openFilters: {
+                        settingsStartsWithCalendars = true
+                        showingSettings = true
+                    })
                 } else {
                     quickCapture
                     if destination == .today {
@@ -99,8 +103,10 @@ struct TaskListView: View {
                                 }
                             } else {
                                 VStack(spacing: 18) {
-                                    TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) }, maxEvents: 1)
-                                        .padding(.horizontal, 32)
+                                    ScrollView {
+                                        TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) }, maxEvents: 1)
+                                            .padding(.horizontal, 32)
+                                    }.frame(maxHeight: min(220, geometry.size.height * 0.5))
                                     content
                                 }
                             }
@@ -121,7 +127,10 @@ struct TaskListView: View {
                     .id(editing.id)
             }
             if showingSettings {
-                SettingsView(model: model) { showingSettings = false }
+                SettingsView(model: model, dismiss: {
+                    showingSettings = false
+                    settingsStartsWithCalendars = false
+                }, initiallyCalendars: settingsStartsWithCalendars)
             }
         }
         .sheet(isPresented: $showingSchedule) {

@@ -4,6 +4,9 @@ import BeaconKit
 struct SettingsView: View {
     var model: TaskListModel
     let dismiss: () -> Void
+    var initiallyCalendars = false
+    private enum Section: String, CaseIterable { case general = "General", calendars = "Calendars", alerts = "Alerts" }
+    @State private var section: Section = .general
 
     var body: some View {
         ZStack {
@@ -23,24 +26,33 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 header
+                Picker("Settings section", selection: $section) {
+                    ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.pickerStyle(.segmented).labelsHidden().padding(.horizontal, 24).padding(.bottom, 16)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        accentSection
-                        calendarSection
-                        UpcomingKeywordSettings(model: .shared)
-                        groupingSection
-                        notificationSection
-                        ladderSection
-                        quietHoursSection
-                        siriSection
-                        aboutSection
+                        switch section {
+                        case .general:
+                            accentSection
+                            groupingSection
+                            siriSection
+                            aboutSection
+                        case .calendars:
+                            UpcomingKeywordSettings(model: .shared)
+                            calendarSection
+                        case .alerts:
+                            notificationSection
+                            ladderSection
+                            quietHoursSection
+                        }
                     }
-                    .padding(Metrics.gutter)
+                    .padding(24)
                 }
-                .scrollContentBackground(.hidden)
+                .scrollContentBackground(.hidden).id(section)
             }
         }
         .frame(width: 520).frame(maxHeight: 700)
+        .onAppear { if initiallyCalendars { section = .calendars } }
     }
 
     private var header: some View {

@@ -5,6 +5,7 @@ struct CalendarWorkspace: View {
     @Bindable var model: CalendarModel
     var search: String
     let followUp: (CalendarEventSnapshot) -> Void
+    var openFilters: () -> Void = {}
     @State private var selectedID: String?
     @State private var showingDatePicker = false
     private var events: [CalendarEventSnapshot] {
@@ -12,15 +13,16 @@ struct CalendarWorkspace: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            CalendarConnection(model: model)
             if model.feed.access == .granted {
-                Picker("Calendar view", selection: $model.showingUpcoming) {
-                    Text("Day").tag(false)
-                    Text("Upcoming · 7 days").tag(true)
-                }.pickerStyle(.segmented).frame(width: 260)
-                    .onChange(of: model.showingUpcoming) { _, _ in model.refreshAfterNavigation() }
+                HStack(spacing: 20) {
+                    calendarTab("Day", upcoming: false)
+                    calendarTab("Next 7 days", upcoming: true)
+                    Spacer(minLength: 8)
+                    CalendarConnection(model: model, compact: true).fixedSize(horizontal: true, vertical: false)
+                }
+                .overlay(alignment: .bottom) { Rectangle().fill(Palette.hairline).frame(height: 1) }
                 if model.showingUpcoming {
-                    UpcomingCalendarAgenda(model: model, search: search, followUp: followUp)
+                    UpcomingCalendarAgenda(model: model, search: search, followUp: followUp, openFilters: openFilters)
                 } else {
                     HStack(spacing: 8) {
                         navigationButton("chevron.left", label: "Previous week") { moveWeek(-1) }
@@ -87,10 +89,24 @@ struct CalendarWorkspace: View {
                         }.frame(maxWidth: .infinity)
                     }
                 }
-            } else { Spacer() }
+            } else { CalendarConnection(model: model); Spacer() }
         }.padding(.horizontal, 32).padding(.bottom, 22)
             .onChange(of: model.selectedDay) { _, _ in selectedID = nil }
             .onChange(of: model.hiddenIDs) { _, _ in selectedID = nil }
+    }
+    private func calendarTab(_ title: String, upcoming: Bool) -> some View {
+        let selected = model.showingUpcoming == upcoming
+        return Button {
+            model.showingUpcoming = upcoming
+            model.refreshAfterNavigation()
+        } label: {
+            Text(title).font(.system(size: 13, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? Palette.ink : Palette.secondary)
+                .frame(height: 38)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(selected ? Palette.ink : .clear).frame(height: 2)
+                }.contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
     }
     private func navigationButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -262,6 +278,7 @@ struct UpcomingCalendarAgenda: View {
     var model: CalendarModel
     var search: String
     let followUp: (CalendarEventSnapshot) -> Void
+    var openFilters: () -> Void = {}
     @State private var selectedID: String?
     private var events: [CalendarEventSnapshot] {
         model.upcomingEvents.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) }
@@ -269,14 +286,21 @@ struct UpcomingCalendarAgenda: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Upcoming").font(.system(size: 18, weight: .semibold))
-                Spacer()
-                Text("Next 7 days · \(events.count) \(events.count == 1 ? "event" : "events")").font(.taskMeta).foregroundStyle(Palette.secondary)
+                Text("\(events.count) \(events.count == 1 ? "event" : "events") in the next 7 days")
+                    .font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                Spacer(minLength: 8)
+                Button(action: openFilters) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.3.horizontal.decrease")
+                        Text("Filters")
+                        let count = model.includeKeywords.count + model.excludeKeywords.count
+                        if count > 0 { Text("\(count)").monospacedDigit() }
+                    }.font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 10).frame(height: 32)
+                        .background(Palette.card, in: RoundedRectangle(cornerRadius: 7)).contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityLabel("Upcoming event filters")
+
             }
-            Text("Include: \(model.includeKeywords.isEmpty ? "All titles" : model.includeKeywords.joined(separator: ", ")) · Exclude: \(model.excludeKeywords.isEmpty ? "None" : model.excludeKeywords.joined(separator: ", "))")
-                .font(.taskMeta).foregroundStyle(Palette.secondary)
-            Text("Change keywords in Settings → Upcoming calendar events.")
-                .font(.system(size: 11)).foregroundStyle(Palette.secondary)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     if events.isEmpty {
@@ -308,7 +332,7 @@ struct UpcomingKeywordSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Upcoming calendar events").font(.fieldLabel).foregroundStyle(Palette.secondary)
-            Text("Filter event titles in Calendar → Upcoming. Match any include keyword; exclude keywords always win. Matching ignores case. Leave Include empty to show all titles.")
+            Text("Match event titles, regardless of case. Exclusions take priority.")
                 .font(.taskMeta).foregroundStyle(Palette.secondary)
             keywordList("Include", values: model.includeKeywords, draft: $includeDraft, excluding: false)
             keywordList("Exclude", values: model.excludeKeywords, draft: $excludeDraft, excluding: true)
@@ -317,6 +341,8 @@ struct UpcomingKeywordSettings: View {
     private func keywordList(_ label: String, values: [String], draft: Binding<String>, excluding: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label).font(.system(size: 12, weight: .semibold))
+            Text(excluding ? "Hide titles containing any of these keywords." : "Show titles containing any keyword. Empty means all events.")
+                .font(.system(size: 11)).foregroundStyle(Palette.secondary)
             HStack {
                 TextField("Add keyword", text: draft)
                     .textFieldStyle(.roundedBorder).accessibilityLabel("\(label) keyword")
@@ -325,12 +351,16 @@ struct UpcomingKeywordSettings: View {
                     .disabled(draft.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel("Add \(label.lowercased()) keyword")
             }
-            FlowRow(spacing: 6) {
+            VStack(spacing: 6) {
                 ForEach(values, id: \.self) { keyword in
                     Button {
                         model.setKeywords(values.filter { $0 != keyword }, excluding: excluding)
                     } label: {
-                        HStack(spacing: 6) { Text(keyword); Image(systemName: "xmark").font(.system(size: 9)) }
+                        HStack(spacing: 8) {
+                            Text(keyword).lineLimit(2).multilineTextAlignment(.leading)
+                            Spacer(minLength: 8)
+                            Image(systemName: "xmark").font(.system(size: 10))
+                        }.frame(maxWidth: .infinity).contentShape(Rectangle())
                             .font(.taskMeta).padding(.horizontal, 9).padding(.vertical, 7)
                             .background(Palette.band, in: RoundedRectangle(cornerRadius: 6))
                     }.buttonStyle(.plain).accessibilityLabel("Remove \(label.lowercased()) keyword \(keyword)")
