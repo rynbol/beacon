@@ -36,7 +36,7 @@ public struct CalendarEventSnapshot: Identifiable, Sendable, Equatable {
                 isAllDay: Bool = false, location: String = "", notes: String = "", meetingURL: URL? = nil) {
         self.identifier = identifier; self.calendarID = calendarID; self.title = title
         self.start = start; self.end = end; self.isAllDay = isAllDay
-        self.location = location; self.notes = notes; self.meetingURL = meetingURL
+        self.location = location; self.notes = CalendarNotes.plainText(notes); self.meetingURL = meetingURL
     }
     public func overlaps(_ interval: DateInterval) -> Bool {
         // Calendar all-day/multiday end dates are exclusive.
@@ -45,9 +45,10 @@ public struct CalendarEventSnapshot: Identifiable, Sendable, Equatable {
     private static let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
     public static func meetingLink(in text: String) -> URL? {
         guard let detector = linkDetector else { return nil }
+        let text = CalendarNotes.plainText(text)
         return detector.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap(\.url).first { url in
             guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else { return false }
-            return ["meet.google.com", "zoom.us", "teams.microsoft.com", "teams.live.com", "webex.com"].contains {
+            return ["meet.google.com", "zoom.us", "zoom.com", "teams.microsoft.com", "teams.live.com", "webex.com"].contains {
                 host == $0 || host.hasSuffix("." + $0)
             }
         }

@@ -51,3 +51,8 @@ Parent Save/Close shortcuts and outside dismissal are guarded while choosing and
 BeaconStepper replaces the small native spinner in snooze intervals and repeat interval/count rows with consistent minus/plus buttons. Existing bounds and model operations remain in place. Date/calendar and color-well controls remain native, as do reminder action/context menus. No new dependency was added.
 
 Primary API references: [SwiftUI move commands](https://developer.apple.com/documentation/swiftui/view/onmovecommand(perform:)) and [modal presentation APIs](https://developer.apple.com/documentation/swiftui/modal-presentations).
+
+
+## Calendar note parsing
+
+[SwiftSoup](https://github.com/scinfu/SwiftSoup), exact version 2.9.6, parses provider HTML locally into plain text. It is a BeaconKit dependency, not a web view or UI component. No URLs are fetched by the parser. Its MIT notice is bundled in Resources/Licenses/SwiftSoup.txt. Both SwiftPM and Xcode resolution files pin the dependency.

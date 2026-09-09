@@ -72,7 +72,7 @@ struct CalendarWorkspace: View {
                         Text(model.selectedDay.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                             .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
                         BeaconScrollView {
-                            LazyVStack(spacing: 10) {
+                            VStack(spacing: 10) {
                                 if events.isEmpty {
                                     Text(model.feed.isRefreshing ? "Loading this day…" : model.feed.calendars.isEmpty ? "No calendars are available. Add an account in Apple Calendar." : "No events to show for this day.")
                                         .font(.system(size: 13)).foregroundStyle(Palette.secondary).padding(.vertical, 32)
@@ -251,13 +251,21 @@ private struct CalendarEventCard: View {
             // header rather than sliding over the title or neighboring events.
             VStack(spacing: 0) {
                 if expanded {
-                    CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) {
+                    CalendarEventDetails(event: event, model: model, close: {
+                        if selectedID == event.id { selectedID = nil }
+                    }) {
+                        guard selectedID == event.id else { return }
                         selectedID = nil
                         followUp(event)
                     }
                     .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                 }
             }.clipped()
+                // Clipping alone does not limit SwiftUI hit testing. Outgoing
+                // content must not cover headers while its transition finishes.
+                .contentShape(Rectangle())
+                .allowsHitTesting(expanded)
+                .accessibilityHidden(!expanded)
         }.clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
@@ -278,16 +286,24 @@ private struct CalendarEventDetails: View {
     @State private var showingFullNotes = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var notes: String { event.notes.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var location: String {
+        let value = event.location.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A meeting URL already has its own action; don't display the long URL
+        // again as a street address or let it widen the card.
+        if let meeting = event.meetingURL, URL(string: value) == meeting { return "" }
+        return value
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Rectangle().fill(Palette.hairline).frame(height: 1)
-            if !event.location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if !location.isEmpty {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "mappin.and.ellipse").frame(width: 16, height: 18)
                         .foregroundStyle(Palette.secondary).accessibilityHidden(true)
-                    Text(event.location).textSelection(.enabled)
+                    Text(location).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }.font(.system(size: 12))
             }
             if !notes.isEmpty {
@@ -363,7 +379,7 @@ struct UpcomingCalendarAgenda: View {
 
             }
             BeaconScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 12) {
                     if events.isEmpty {
                         Text(model.feed.isRefreshing ? "Loading upcoming events…" : "No upcoming events match. Check your keywords and calendar toggles.")
                             .font(.taskMeta).foregroundStyle(Palette.secondary).padding(.vertical, 28)
