@@ -61,8 +61,8 @@ struct CalendarWorkspace: View {
                                     Text(day.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 11))
                                     Text(day.formatted(.dateTime.day())).font(.system(size: 18, weight: .medium))
                                 }.frame(maxWidth: .infinity).frame(height: 64)
-                                    .foregroundStyle(active ? Accent.ocean.color : Palette.secondary)
-                                    .background(active ? Accent.ocean.color.opacity(0.10) : Palette.card.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                                    .foregroundStyle(active ? TaskListModel.shared.accent.color : Palette.secondary)
+                                    .background(active ? TaskListModel.shared.accent.color.opacity(0.10) : Palette.card.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
                                     .contentShape(Rectangle())
                             }.buttonStyle(.plain).accessibilityLabel(day.formatted(date: .complete, time: .omitted))
                                 .accessibilityAddTraits(active ? .isSelected : [])
@@ -156,7 +156,7 @@ struct CalendarConnection: View {
                 Text("Your schedule, alongside your reminders.").font(.system(size: 13, weight: .medium))
                 Text("Connect Calendar to see iCloud, Google, and other accounts added on this Mac.")
                     .font(.system(size: 12)).foregroundStyle(Palette.secondary)
-                Button("Connect Calendar") { Task { await model.connect() } }.buttonStyle(.borderedProminent).tint(Accent.ocean.color)
+                Button("Connect Calendar") { Task { await model.connect() } }.buttonStyle(.borderedProminent).tint(TaskListModel.shared.accent.color)
             case .denied:
                 Text("Calendar access is off").font(.system(size: 13, weight: .medium))
                 Button("Open Calendar Privacy Settings") {
@@ -208,7 +208,7 @@ struct CalendarFilters: View {
                         }.frame(width: 48, height: 36).contentShape(Rectangle())
                     }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                         .accessibilityLabel("Color for \(calendar.title)").help("Color for \(calendar.title)")
-                }.background(model.color(for: calendar.id).opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                }.overlay(alignment: .bottom) { Rectangle().fill(Palette.hairline.opacity(0.5)).frame(height: 1).allowsHitTesting(false) }
             }
         }
     }
@@ -247,12 +247,14 @@ private struct CalendarEventDetails: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
-                Text(event.title).font(.system(size: 20, design: .serif))
+                Text(event.title).font(.system(size: 16, weight: .semibold))
                 Spacer(minLength: 4)
                 Button(action: close) { Image(systemName: "xmark").frame(width: 28, height: 28).contentShape(Rectangle()) }
                     .buttonStyle(.plain).accessibilityLabel("Close event details")
             }
-            Text(event.start.formatted(date: .abbreviated, time: .omitted) + " · " + CalendarEventFormatting.timeRange(event))
+            Text(Calendar.current.isDate(event.start, inSameDayAs: event.end)
+                 ? event.start.formatted(date: .abbreviated, time: .omitted) + " · " + CalendarEventFormatting.timeRange(event)
+                 : CalendarEventFormatting.timeRange(event))
                 .font(.system(size: 12)).foregroundStyle(Palette.secondary)
             if !event.location.isEmpty { Label(event.location, systemImage: "mappin").font(.system(size: 12)) }
             if !event.notes.isEmpty {
@@ -324,7 +326,7 @@ struct UpcomingKeywordSettings: View {
     @State private var excludeDraft = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Upcoming calendar events").font(.fieldLabel).foregroundStyle(Palette.secondary)
+            Text("Upcoming filters").font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.ink)
             Text("Match event titles, regardless of case. Exclusions take priority.")
                 .font(.taskMeta).foregroundStyle(Palette.secondary)
             keywordList("Include", values: model.includeKeywords, draft: $includeDraft, excluding: false)

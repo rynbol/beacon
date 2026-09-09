@@ -27,11 +27,12 @@ The preview does not request Reminders access or save task changes. It displays 
 
 - Capture a reminder in the field above the list. Include a phrase such as “tomorrow at 9am” and review the interpreted date before pressing Return.
 - Cmd-N opens the full editor for notes, date presets, list selection, and repeat rules. New reminders and quick entry inherit the view: Today → now, Upcoming → tomorrow at 9 AM, Calendar → selected day, All/Someday/Completed → undated. An explicit date overrides the default.
+- The editor keeps Today, Tomorrow, Someday, and Date visible; the Later menu holds relative-time presets. Repeat settings include a removable rule and a selectable end date.
 - Cmd-F searches titles, notes, and list names in the current view.
 - Use the circle to complete a task and the labeled Snooze menu to defer it.
 - Urgency defaults to None. Choose Low, Medium, or High in the editor to show a small colored flag beside the timing, replacing the list-name label. The title and timing styles stay unchanged; the list remains available in the editor and list grouping. Urgency uses Apple Reminders priority, so existing priorities appear in Beacon and changes sync through your Reminders account. Settings → Appearance → Urgency controls the three local flag colors, with a Reset option. Urgency does not change sorting or alert scheduling.
 - Navigate All reminders, Today, Upcoming, Someday, and Completed in the sidebar. Completed shows reminders finished since local midnight; it resets each calendar day on refresh (including the automatic minute refresh).
-- Cmd-comma opens Settings, organized into Appearance, Calendars, Alerts, and Help. Calendar’s Next 7 days → Filters opens the keyword controls directly in Calendars. Click outside Settings, use its X, or press Esc to close; preferences save as you change them.
+- Cmd-comma opens Settings, organized into Appearance, Calendars, Notifications, Snooze, and Help. Calendar’s Next 7 days → Filters opens the keyword controls directly in Calendars. Click outside Settings, use its X, or press Esc to close; preferences save as you change them.
 - Settings → Appearance combines Background (Paper, Mist, Beige, Dark), Highlight, grouping, and urgency colors. Backgrounds apply immediately throughout the app and persist locally; Paper is the default. Highlight selection and custom urgency colors are preserved when switching themes. Dark uses lighter default accents and urgency flags for visibility.
 - The footer shows Reminders connectivity and alert status. Its information button opens the scheduling plan.
 
@@ -41,7 +42,7 @@ Tasks remain in Apple Reminders. Beacon stores preferences, snooze deadlines, an
 
 The unit suite covers parsing, grouping, recurrence calculations, notification planning, quiet hours, spacing, and the new snooze/premature-alert regressions. This branch contains the Mac app. The separate minimal iPhone worktree is not included in this repository publication.
 
-Normal launch requests Reminders and Notifications permissions if needed. The build script uses the existing Beacon Dev signing certificate when available. Live notification delivery, Focus, sleep/wake, and recurring writes require device validation. `Scripts/e2e.sh` is an optional integration harness that creates real scratch reminders; it is not part of the unit suite.
+Normal launch requests Reminders and Notifications permissions if needed. The build script uses the existing Beacon Dev signing certificate when available. Live notification delivery, Focus, sleep/wake, and recurring writes require device validation. `Scripts/e2e.sh` is an optional integration harness that creates real scratch reminders; it is not part of the unit suite. The harness only edits identifiers created during its run, removes those reminders afterward, reads Calendar without writing events, and constructs notification requests without replacing the system queue. See [the UI and integration audit](docs/UI-AUDIT.md) for verified coverage and remaining device checks.
 
 The app refreshes on activation, external Reminders changes, and once a minute while running. Future tasks enter the 36-hour one-shot planning horizon on refresh; daily task alerts are only installed once due. No claim is made that every reminder can notify indefinitely without running the app.
 

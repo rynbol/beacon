@@ -31,6 +31,7 @@ struct TaskListView: View {
     private var calendarModel: CalendarModel { .shared }
     @State private var editing: EditorTarget?
     @State private var showingSettings = false
+    @State private var settingsStartsWithNotifications = false
     @State private var settingsStartsWithCalendars = false
     @State private var showingSchedule = false
     @State private var destination: Destination = .all
@@ -110,7 +111,8 @@ struct TaskListView: View {
                 SettingsView(model: model, dismiss: {
                     showingSettings = false
                     settingsStartsWithCalendars = false
-                }, initiallyCalendars: settingsStartsWithCalendars)
+                    settingsStartsWithNotifications = false
+                }, initiallyCalendars: settingsStartsWithCalendars, initiallyNotifications: settingsStartsWithNotifications)
             }
         }
         .sheet(isPresented: $showingSchedule) {
@@ -122,9 +124,9 @@ struct TaskListView: View {
         }
         .frame(minWidth: 760, minHeight: 580)
         .background {
-            Button("Search reminders") { searchFocused = true }.keyboardShortcut("f").hidden()
+            Button("Search reminders") { searchFocused = true }.keyboardShortcut("f").disabled(editing != nil || showingSettings || showingSchedule).hidden()
             Button("New reminder") { editing = .new(dictate: false, defaultDue: newReminderDue) }
-                .keyboardShortcut("n").hidden()
+                .keyboardShortcut("n").disabled(editing != nil || showingSettings || showingSchedule).hidden()
         }
     }
 
@@ -330,7 +332,7 @@ struct TaskListView: View {
                     else { Image(systemName: "magnifyingglass").font(.system(size: 24)) }
                 }.frame(width: 32, height: 32).foregroundStyle(accent).padding(.bottom, 8)
                 Text(search.isEmpty ? "No reminders here" : "No matching reminders")
-                    .font(.system(size: 23, design: .serif))
+                    .font(.system(size: 18, weight: .semibold))
                 Text(search.isEmpty ? "Use New reminder or ⌘N to add one." : "Try another title, note, or list name.")
                     .font(.system(size: 12)).foregroundStyle(Palette.secondary)
                 Spacer()
@@ -372,7 +374,7 @@ struct TaskListView: View {
             Image(systemName: model.access == .granted ? "checkmark.icloud" : "icloud.slash")
             Text(model.isPreview ? "Design preview · sample reminders" : model.access == .granted ? "Connected to Apple Reminders" : "Apple Reminders isn’t connected")
             Spacer()
-            Button { showingSettings = true } label: {
+            Button { settingsStartsWithNotifications = true; showingSettings = true } label: {
                 Label(model.isAlerting ? "Alerts on" : "Alerts off", systemImage: model.isAlerting ? "bell" : "bell.slash")
             }.buttonStyle(.plain)
             if model.plan != nil {

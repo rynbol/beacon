@@ -3,9 +3,7 @@ import BeaconKit
 
 /// A diagnostic: what the planner decided, against the real database.
 ///
-/// It sends nothing. Notification delivery arrives in a later milestone; this
-/// exists so the scheduling rules can be checked against real reminders before
-/// anything is allowed to fire.
+/// Read-only view of the current plan. Opening it never sends an alert.
 struct ScheduleView: View {
     let plan: Plan
     let accent: Color
@@ -30,7 +28,8 @@ struct ScheduleView: View {
                 } header: {
                     Text("Budget")
                 } footer: {
-                    Text("This is the current plan. Delivery depends on the Alerts setting and macOS notification permissions.")
+                    Text("Delivery depends on Beacon notifications and macOS permissions.")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 ForEach(Array(kinds), id: \.self) { kind in
@@ -55,11 +54,11 @@ struct ScheduleView: View {
             .background(Palette.wash)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.foregroundStyle(accent)
+                    Button("Done") { dismiss() }.foregroundStyle(accent).keyboardShortcut(.cancelAction)
                 }
             }
         }
-        .frame(minWidth: 420, minHeight: 520)
+        .frame(minWidth: 520, minHeight: 520)
     }
 
     private var kinds: [PlannedNotification.Kind] { [.digest, .taskBeacon, .ladder] }
@@ -68,7 +67,7 @@ struct ScheduleView: View {
         switch kind {
         case .digest: return "Daily check-in"
         case .taskBeacon: return "Daily reminder per task"
-        case .ladder: return "Today"
+        case .ladder: return "Scheduled times"
         }
     }
 

@@ -433,7 +433,10 @@ final class TaskListModel {
             TaskSnapshot(key: "preview-6", title: "Plan a weekend by the coast", listName: "Personal", due: Settings.somedayDate(from: now, calendar: .current)),
             TaskSnapshot(key: "preview-7", title: "Send the project update", listName: "Work", isCompleted: true, completionDate: now)
         ]
+        lists = [("preview-personal", "Personal"), ("preview-work", "Work")]
+        selectedListID = lists.first?.id
         groups = Sections.group(tasks, now: now, calendar: .current)
+        plan = Scheduler.plan(now: now, tasks: tasks, state: [:], settings: settings, calendar: .current)
         access = .granted
         alertsEnabled = false
         lastRefresh = now

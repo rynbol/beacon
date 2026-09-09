@@ -5,7 +5,8 @@ struct SettingsView: View {
     var model: TaskListModel
     let dismiss: () -> Void
     var initiallyCalendars = false
-    private enum Section: String, CaseIterable { case appearance = "Appearance", calendars = "Calendars", alerts = "Alerts", help = "Help" }
+    var initiallyNotifications = false
+    private enum Section: String, CaseIterable { case appearance = "Appearance", calendars = "Calendars", alerts = "Notifications", snooze = "Snooze", help = "Help" }
     @State private var section: Section = .appearance
 
     var body: some View {
@@ -21,23 +22,43 @@ struct SettingsView: View {
     }
 
     private var settingsCard: some View {
-        ZStack {
-            Palette.wash.ignoresSafeArea()
-
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Settings").font(.system(size: 16, weight: .semibold))
+                    .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 18)
+                ForEach(Section.allCases, id: \.self) { item in
+                    Button { section = item } label: {
+                        Text(item.rawValue).font(.system(size: 13, weight: section == item ? .medium : .regular))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10).frame(height: 34)
+                            .foregroundStyle(section == item ? Palette.ink : Palette.secondary)
+                            .background(section == item ? Palette.card : .clear, in: RoundedRectangle(cornerRadius: 6))
+                            .contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                        .accessibilityAddTraits(section == item ? .isSelected : [])
+                }
+                Spacer()
+            }.padding(12).frame(width: 154).background(Palette.band)
+            Rectangle().fill(Palette.hairline).frame(width: 1)
             VStack(spacing: 0) {
-                header
-                SwiftcnTabs(selection: $section, options: Section.allCases.map { ($0, $0.rawValue) })
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 24).padding(.bottom, 16)
+                HStack {
+                    Text(section.rawValue).font(.system(size: 19, weight: .semibold))
+                    Spacer()
+                    Button(action: dismiss) {
+                        Image(systemName: "xmark").font(.system(size: 12, weight: .medium))
+                            .frame(width: 28, height: 28).contentShape(Rectangle())
+                    }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
+                        .foregroundStyle(Palette.secondary)
+                        .accessibilityLabel("Close settings").help("Close settings · Esc")
+                }.padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 16)
                 BeaconScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 24) {
                         switch section {
                         case .appearance:
                             ThemePicker()
-                            Divider()
                             accentSection
-                            groupingSection
                             Divider()
+                            groupingSection
                             UrgencyColorSettings()
                         case .help:
                             siriSection
@@ -47,43 +68,25 @@ struct SettingsView: View {
                             calendarSection
                         case .alerts:
                             notificationSection
-                            ladderSection
                             quietHoursSection
+                        case .snooze:
+                            ladderSection
                         }
-                    }
-                    .padding(24)
-                }
-                .scrollContentBackground(.hidden).id(section)
-            }
+                    }.padding(.horizontal, 24).padding(.bottom, 24)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }.scrollContentBackground(.hidden).id(section)
+            }.frame(maxWidth: .infinity).background(Palette.washTop)
         }
-        .frame(width: 520).frame(maxHeight: 700)
-        .onAppear { if initiallyCalendars { section = .calendars } }
-    }
-
-    private var header: some View {
-        HStack {
-            Spacer()
-            Text("Settings")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Palette.ink)
-            Spacer()
+        .foregroundStyle(Palette.ink)
+        .frame(width: 700).frame(maxHeight: 600)
+        .onAppear {
+            if initiallyCalendars { section = .calendars }
+            else if initiallyNotifications { section = .alerts }
         }
-        .overlay(alignment: .trailing) {
-            Button { dismiss() } label: {
-                Image(systemName: "xmark").font(.system(size: 13, weight: .medium))
-                    .frame(width: 32, height: 32)
-                    .background(Palette.card, in: Circle()).contentShape(Circle())
-            }
-            .buttonStyle(.plain).keyboardShortcut(.cancelAction)
-            .accessibilityLabel("Close settings").help("Close settings · Esc")
-            .foregroundStyle(model.accent.color)
-        }
-        .padding(.horizontal, Metrics.gutter)
-        .padding(.vertical, 14)
     }
 
     private func label(_ text: String) -> some View {
-        Text(text).font(.fieldLabel).foregroundStyle(Palette.secondary)
+        Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.ink)
     }
 
     private var accentSection: some View {
@@ -114,7 +117,7 @@ struct SettingsView: View {
                         Text(alertsDetail).font(.taskMeta).foregroundStyle(Palette.secondary)
                     }
                     Spacer()
-                    Toggle("", isOn: Binding(
+                    Toggle("Enable Beacon notifications", isOn: Binding(
                         get: { model.alertsEnabled },
                         set: { on in Task { await model.setAlertsEnabled(on) } }
                     ))
@@ -156,7 +159,7 @@ struct SettingsView: View {
 
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Turn off Reminders' own alerts")
+                        Text("Hearing duplicate alerts?")
                             .font(.rowLabel).foregroundStyle(Palette.ink)
                         Text("If you hear duplicate alerts, adjust Apple Reminders in System Settings.")
                             .font(.taskMeta).foregroundStyle(Palette.secondary)
@@ -171,7 +174,7 @@ struct SettingsView: View {
 
     private var alertsDetail: String {
         guard model.alertsEnabled else {
-            return "Off. Your tasks stay in the list, and Beacon says nothing."
+            return "Off. Reminders stay in your list."
         }
         switch model.authorization {
         case .granted: return "\(model.pendingCount) alerts are scheduled."
@@ -192,7 +195,7 @@ struct SettingsView: View {
 
     private var ladderSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            label("Snooze ladder")
+            label("Snooze intervals")
             Card {
                 ForEach(Array(model.settings.ladder.enumerated()), id: \.offset) { index, interval in
                     HStack {
@@ -202,7 +205,7 @@ struct SettingsView: View {
                         Text(IntervalText.short(interval))
                             .font(.rowLabel).monospacedDigit()
                             .foregroundStyle(Palette.secondary)
-                        Stepper("") {
+                        Stepper("Snooze \(index + 1) interval") {
                             model.adjustLadder(at: index, by: 1)
                         } onDecrement: {
                             model.adjustLadder(at: index, by: -1)
@@ -228,7 +231,7 @@ struct SettingsView: View {
                     Text("From").font(.rowLabel).foregroundStyle(Palette.ink)
                     Spacer()
                     hourPicker(
-                        value: Binding(
+                        label: "Quiet hours start", value: Binding(
                             get: { model.settings.quietStartHour },
                             set: { model.setQuietHours(start: $0, end: model.settings.quietEndHour) }
                         )
@@ -243,7 +246,7 @@ struct SettingsView: View {
                     Text("Until").font(.rowLabel).foregroundStyle(Palette.ink)
                     Spacer()
                     hourPicker(
-                        value: Binding(
+                        label: "Quiet hours end", value: Binding(
                             get: { model.settings.quietEndHour },
                             set: { model.setQuietHours(start: model.settings.quietStartHour, end: $0) }
                         )
@@ -252,13 +255,13 @@ struct SettingsView: View {
                 .padding(.horizontal, Metrics.gutter)
                 .frame(height: 46)
             }
-            Text("Alerts inside this window wait for the morning. Anything you ask for by hand still fires on time.")
+            Text("Automatic alerts wait until quiet hours end. Manual snoozes keep their chosen time.")
                 .font(.taskMeta).foregroundStyle(Palette.tertiary)
         }
     }
 
-    private func hourPicker(value: Binding<Int>) -> some View {
-        Picker("", selection: value) {
+    private func hourPicker(label: String, value: Binding<Int>) -> some View {
+        Picker(label, selection: value) {
             ForEach(0..<24, id: \.self) { hour in
                 Text(String(format: "%02d:00", hour)).tag(hour)
             }
@@ -295,13 +298,15 @@ struct SettingsView: View {
                     if CalendarModel.shared.feed.access == .granted {
                         CalendarFilters(model: .shared)
                     }
-                    Text("Add Google in Apple Calendar → Add Account. Beacon shows calendars synced to this Mac. Switching views, returning to Beacon, or pressing ⌘R reads them again; provider changes appear as macOS syncs them.")
-                        .font(.taskMeta).foregroundStyle(Palette.secondary)
-                    Text("Colors chosen here only change Beacon. Event alerts stay in Calendar.")
-                        .font(.taskMeta).foregroundStyle(Palette.secondary)
-                    Button("Open Apple Calendar") {
-                        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") { NSWorkspace.shared.open(url) }
-                    }.buttonStyle(.link)
+                    DisclosureGroup("Accounts & sync") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Add Google in Apple Calendar → Add Account. Beacon reads the calendars synced to this Mac. Press ⌘R to refresh; remote changes appear as macOS syncs them.")
+                            Text("Colors apply only to Beacon. Event alerts stay in Calendar.")
+                            Button("Open Apple Calendar") {
+                                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") { NSWorkspace.shared.open(url) }
+                            }.buttonStyle(.link)
+                        }.font(.taskMeta).foregroundStyle(Palette.secondary).padding(.top, 8)
+                    }.font(.taskMeta).foregroundStyle(Palette.secondary)
                 }.padding(Metrics.gutter)
             }
         }

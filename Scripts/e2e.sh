@@ -11,6 +11,11 @@ cd "$(dirname "$0")/.."
 REPORT="$PWD/build/e2e-report.txt"
 rm -f "$REPORT"
 
-open -W -a "$PWD/build/Beacon.app" --args --e2e --report "$REPORT" || true
+open -n -W -a "$PWD/build/Beacon.app" --args --e2e --report "$REPORT" || true
 echo
-cat "$REPORT" 2>/dev/null || echo "No report written — allow Reminders access when macOS asks, then run again."
+if [[ ! -f "$REPORT" ]]; then
+    echo "No report written — check the app launch and Reminders permission."
+    exit 1
+fi
+cat "$REPORT"
+if ! grep -q 'checks passed, 0 failed' "$REPORT"; then exit 1; fi

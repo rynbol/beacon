@@ -111,7 +111,7 @@ struct TaskEditor: View {
                         chipRow
                         notesField
                         attachments
-                        if let recurrence { RepeatCard(recurrence: bindingTo(recurrence), due: due, accent: accent) }
+                        if let recurrence { RepeatCard(recurrence: bindingTo(recurrence), due: due, accent: accent, remove: { self.recurrence = nil }) }
                         if !isNew { deleteButton }
                     }
                     .padding(Metrics.gutter)
@@ -120,7 +120,7 @@ struct TaskEditor: View {
             }
         }
         .frame(width: 520)
-        .frame(maxHeight: 670)
+        .frame(maxHeight: recurrence == nil ? 580 : 670)
         .onAppear {
             load()
             if case .new(dictate: true, defaultDue: _) = target {
@@ -160,6 +160,8 @@ struct TaskEditor: View {
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.cancelAction)
+            .accessibilityLabel("Close reminder")
+            .disabled(saving)
 
             Spacer()
             Text(isNew ? "New reminder" : "Edit reminder")
@@ -249,23 +251,30 @@ struct TaskEditor: View {
         }
     }
 
+    private func choose(_ option: DueChip) {
+        chipWasChosen = true
+        if chip == option { chip = nil; due = nil }
+        else { chip = option; due = option.date(from: .now, calendar: .current) }
+    }
+
     private var chipRow: some View {
-        FlowRow(spacing: 8) {
-            ForEach(chips) { option in
-                Chip(label: option.label, isSelected: chip == option, accent: accent) {
-                    chipWasChosen = true
-                    if chip == option {
-                        chip = nil; due = nil
-                    } else {
-                        chip = option
-                        due = option.date(from: .now, calendar: .current)
-                    }
-                }
+        let prominent: [DueChip] = recurrence == nil ? [.today, .tomorrow, .someday] : [.today]
+        return FlowRow(spacing: 8) {
+            ForEach(prominent) { option in
+                Chip(label: option.label, isSelected: chip == option, accent: accent) { choose(option) }
             }
-            Chip(label: "Date", systemImage: "chevron.right", isSelected: false, accent: accent) {
+            Chip(label: "Date", systemImage: "calendar", isSelected: false, accent: accent) {
                 chipWasChosen = true
                 showingDatePicker = true
             }
+            Menu {
+                ForEach(chips.filter { !prominent.contains($0) }) { option in
+                    Button(option.label) { choose(option) }
+                }
+            } label: {
+                Text(chip.map { prominent.contains($0) ? "Later" : $0.label } ?? "Later")
+                    .font(.system(size: 12)).foregroundStyle(accent)
+            }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("More reminder times")
         }
     }
 
@@ -294,26 +303,30 @@ struct TaskEditor: View {
             HStack(spacing: 10) {
                 Image(systemName: urgency == .none ? "circle.slash" : "flag")
                     .foregroundStyle(UrgencyColors.shared.color(for: urgency)).frame(width: 30)
+                Text("Urgency").font(.rowLabel)
+                Spacer()
                 Picker("Urgency", selection: $urgency) {
                     ForEach(Urgency.allCases, id: \.self) { level in
                         Label(level.title, systemImage: level == .none ? "circle.slash" : "flag").tag(level)
                     }
-                }.pickerStyle(.menu).font(.rowLabel)
+                }.labelsHidden().pickerStyle(.menu).fixedSize().font(.rowLabel)
             }.padding(.horizontal, Metrics.gutter).frame(height: 46)
-            InsetDivider(leading: 46)
             if model.lists.count > 1 {
+                InsetDivider(leading: 46)
                 HStack {
                     Image(systemName: "list.bullet")
                         .font(.system(size: 14))
                         .foregroundStyle(accent)
                         .frame(width: 30)
-                    Picker("", selection: $listID) {
+                    Text("List").font(.rowLabel)
+                    Spacer()
+                    Picker("Reminder list", selection: $listID) {
                         ForEach(model.lists, id: \.id) { list in
                             Text(list.title).tag(Optional(list.id))
                         }
                     }
                     .labelsHidden()
-                    .pickerStyle(.menu)
+                    .pickerStyle(.menu).fixedSize()
                     .font(.rowLabel)
                 }
                 .padding(.horizontal, Metrics.gutter)

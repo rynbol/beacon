@@ -20,7 +20,7 @@ struct BeaconApp: App {
                 // Coordinate native controls with the selected background preset.
                 .preferredColorScheme(AppearanceStore.shared.theme == .dark ? .dark : .light)
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { Task { await model.refresh(); await CalendarModel.shared.refresh() } }
+                    if phase == .active && !E2ECheck.isHarnessRun { Task { await model.refresh(); await CalendarModel.shared.refresh() } }
                 }
                 .task {
                     guard !model.isPreview, !E2ECheck.isHarnessRun else { return }
@@ -36,7 +36,8 @@ struct BeaconApp: App {
         .defaultSize(width: 1000, height: 780)
         .windowStyle(.hiddenTitleBar)
         .commands {
-            CommandGroup(after: .newItem) {
+            // Cmd-N belongs to reminder capture; do not fall through to New Window while a dialog is open.
+            CommandGroup(replacing: .newItem) {
                 Button("Refresh") {
                     Task { await model.refresh(); await CalendarModel.shared.refresh() }
                 }

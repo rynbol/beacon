@@ -12,6 +12,7 @@ struct RepeatCard: View {
     @Binding var recurrence: Recurrence
     let due: Date?
     let accent: Color
+    let remove: () -> Void
 
     private var calendar: Calendar { .current }
 
@@ -27,6 +28,14 @@ struct RepeatCard: View {
                 }
                 InsetDivider()
                 endRow
+            }
+
+            if case let .on(end) = recurrence.end {
+                DatePicker("End date", selection: Binding(get: {
+                    if case let .on(date) = recurrence.end { return date }
+                    return end
+                }, set: { recurrence.end = .on($0) }), displayedComponents: .date)
+                    .font(.taskMeta)
             }
 
             Text(recurrence.sentence(calendar: calendar))
@@ -45,12 +54,11 @@ struct RepeatCard: View {
                 }
             }
 
-            Button("Remove Repeat") { recurrence.end = .after(0) }
+            Button("Remove repeat", action: remove)
                 .buttonStyle(.plain)
                 .font(.taskMeta)
                 .foregroundStyle(Palette.tertiary)
-                .opacity(0)
-                .frame(height: 0)
+                .accessibilityLabel("Remove repeat")
         }
     }
 
@@ -72,7 +80,7 @@ struct RepeatCard: View {
         HStack {
             Text("Repeat").font(.rowLabel).foregroundStyle(Palette.ink)
             Spacer()
-            Picker("", selection: $recurrence.frequency) {
+            Picker("Repeat frequency", selection: $recurrence.frequency) {
                 ForEach(Recurrence.Frequency.allCases, id: \.self) { frequency in
                     Text(frequency.title).tag(frequency)
                 }
@@ -121,6 +129,7 @@ struct RepeatCard: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(symbol == "minus" ? "Decrease repeat interval" : "Increase repeat interval")
     }
 
     private var weekdayRow: some View {
@@ -151,7 +160,7 @@ struct RepeatCard: View {
         HStack {
             Text("End Repeat").font(.rowLabel).foregroundStyle(Palette.ink)
             Spacer()
-            Picker("", selection: endSelection) {
+            Picker("End repeat", selection: endSelection) {
                 Text("Never").tag(0)
                 Text("After a count").tag(1)
                 Text("On a date").tag(2)
@@ -165,7 +174,7 @@ struct RepeatCard: View {
                     .font(.rowLabel)
                     .monospacedDigit()
                     .foregroundStyle(Palette.secondary)
-                Stepper("") {
+                Stepper("Repeat count") {
                     recurrence.end = .after(min(99, count + 1))
                 } onDecrement: {
                     recurrence.end = .after(max(1, count - 1))
