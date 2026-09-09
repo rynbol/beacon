@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftUIIntrospect
 import Observation
 import BeaconKit
 
@@ -258,23 +259,17 @@ struct UrgencyColorSettings: View {
     }
 }
 
-/// Keep the native indicator available during scrolling without idle chrome.
+/// Let AppKit own scrollbar fading and dragging without changing content width.
 struct BeaconScrollView<Content: View>: View {
     @ViewBuilder var content: () -> Content
-    @State private var scrolling = false
-    @State private var showsIndicator = false
 
     var body: some View {
         ScrollView { content() }
-            .scrollIndicators(showsIndicator ? .visible : .never)
-            .onScrollPhaseChange { _, phase in
-                scrolling = phase != .idle
-                if scrolling { showsIndicator = true }
-            }
-            .task(id: scrolling) {
-                guard !scrolling else { return }
-                do { try await Task.sleep(for: .milliseconds(900)) } catch { return }
-                showsIndicator = false
+            .introspect(.scrollView, on: .macOS(.v26)) { scrollView in
+                scrollView.scrollerStyle = .overlay
+                scrollView.autohidesScrollers = true
+                scrollView.verticalScroller?.controlSize = .small
+                scrollView.horizontalScroller?.controlSize = .small
             }
     }
 }

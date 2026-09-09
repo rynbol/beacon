@@ -10,11 +10,14 @@ let package = Package(
     products: [
         .library(name: "BeaconKit", targets: ["BeaconKit"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/siteline/swiftui-introspect.git", exact: "26.0.2")
+    ],
     targets: [
         .target(name: "BeaconKit"),
         // The macOS app. Packaged into a bundle by Scripts/build-mac-app.sh,
         // which is what gives it the Info.plist that EventKit requires.
-        .executableTarget(name: "BeaconApp", dependencies: ["BeaconKit"]),
+        .executableTarget(name: "BeaconApp", dependencies: ["BeaconKit", .product(name: "SwiftUIIntrospect", package: "swiftui-introspect")]),
         // Prints one worked plan, for eyeballing behaviour by hand.
         .executableTarget(name: "BeaconDemo", dependencies: ["BeaconKit"]),
         .testTarget(name: "BeaconKitTests", dependencies: ["BeaconKit"]),

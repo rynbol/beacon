@@ -1,6 +1,6 @@
 # Security and privacy
 
-Beacon is a personal native Mac app backed by Apple Reminders and EventKit. It has no third-party package dependencies, backend server, API keys, or analytics integration. Google/iCloud account authentication and calendar sync are handled by macOS.
+Beacon is a personal native Mac app backed by Apple Reminders and EventKit. It has no backend server, API keys, or analytics integration. The Mac UI uses SwiftUI Introspect 26.0.2 (MIT), pinned exactly in SwiftPM and Xcode, to configure native scrollbars. That package has no transitive dependencies or build plugins. Google/iCloud account authentication and calendar sync are handled by macOS.
 
 ## Review before public source publication — 2026-09-08
 

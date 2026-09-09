@@ -20,6 +20,8 @@ if ! xcodebuild -project Beacon.xcodeproj -scheme BeaconMac \
 fi
 rm -rf "$APP"
 ditto "build/DerivedData/Build/Products/$CONFIG/Beacon.app" "$APP"
+mkdir -p "$APP/Contents/Resources/Licenses"
+cp Resources/Licenses/SwiftUIIntrospect.txt "$APP/Contents/Resources/Licenses/"
 if [[ "${BEACON_PREVIEW:-0}" == "1" ]]; then
     /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier dev.dylan.beacon.v2.preview" "$APP/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleName Beacon V2 Preview" "$APP/Contents/Info.plist"
