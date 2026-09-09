@@ -18,10 +18,10 @@ private enum Destination: String, CaseIterable, Identifiable {
         switch self {
         case .all: return "All your reminders, in one place."
         case .today: return "What needs your attention today."
-        case .calendar: return "Everything u have"
+        case .calendar: return "Everything u have."
         case .upcoming: return "Scheduled for the days ahead."
-        case .someday: return "Saved for when you’re ready."
-        case .done: return "Finished in the last hour."
+        case .someday: return "For the future."
+        case .done: return "Things u have done."
         }
     }
 }
@@ -274,8 +274,10 @@ struct TaskListView: View {
                     .accessibilityLabel("Add reminder")
             }.padding(16).background(Palette.card, in: RoundedRectangle(cornerRadius: 11))
                 .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(captureFocused ? accent.opacity(0.55) : Palette.hairline, lineWidth: 1))
-            Text(capture.isEmpty ? "Try “water the plants tomorrow at 9am”" : capturePreview)
-                .font(.system(size: 11)).foregroundStyle(Palette.secondary).padding(.leading, 3)
+            if !capture.isEmpty {
+                Text(capturePreview)
+                    .font(.system(size: 11)).foregroundStyle(Palette.secondary).padding(.leading, 3)
+            }
         }.padding(.horizontal, 32).padding(.bottom, 24)
     }
 

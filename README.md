@@ -29,7 +29,7 @@ The preview does not request Reminders access or save task changes. It displays 
 - Cmd-N opens the full editor for notes, date presets, list selection, and repeat rules. New reminders and quick entry inherit the view: Today → now, Upcoming → tomorrow at 9 AM, Calendar → selected day, All/Someday/Completed → undated. An explicit date overrides the default.
 - Cmd-F searches titles, notes, and list names in the current view.
 - Use the circle to complete a task and the labeled Snooze menu to defer it.
-- Navigate All reminders, Today, Upcoming, Someday, and recently Completed in the sidebar.
+- Navigate All reminders, Today, Upcoming, Someday, and Completed in the sidebar. Completed shows reminders finished since local midnight; it resets each calendar day on refresh (including the automatic minute refresh).
 - Cmd-comma opens Settings, organized into General, Calendars, and Alerts. Calendar’s Next 7 days → Filters opens the keyword controls directly in Calendars. Click outside Settings, use its X, or press Esc to close; preferences save as you change them.
 - The footer shows Reminders connectivity and alert status. Its information button opens the scheduling plan.
 

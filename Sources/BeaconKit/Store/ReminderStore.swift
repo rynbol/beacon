@@ -74,6 +74,13 @@ public final class ReminderStore {
         return .ok(snapshots)
     }
 
+    /// Completed since local midnight, rather than within a rolling duration.
+    public func fetchCompletedToday(now: Date, calendar: Calendar = .current) async -> [TaskSnapshot] {
+        let range = CompletedDay.range(now: now, calendar: calendar)
+        return await fetchRecentlyCompleted(within: range.duration, now: now)
+            .filter { CompletedDay.contains($0.completionDate, now: now, calendar: calendar) }
+    }
+
     /// Reminders completed inside the trailing window, for the section that
     /// lets a finished task be visible for a while.
     public func fetchRecentlyCompleted(within window: TimeInterval, now: Date) async -> [TaskSnapshot] {

@@ -117,7 +117,7 @@ final class TaskListModel {
             refusal = nil
             lists = store.writableLists
             let now = Date()
-            let completed = await store.fetchRecentlyCompleted(within: 3600, now: now)
+            let completed = await store.fetchCompletedToday(now: now)
             groups = Sections.group(active + completed, now: now, calendar: .current)
             listGroups = Sections.groupByList(active + completed, now: now, calendar: .current)
 
