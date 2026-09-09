@@ -84,8 +84,9 @@ struct TaskListView: View {
     private var completedKeys: [String] {
         allTasks.filter(\.isCompleted).map(\.key).sorted()
     }
-    private var completionTransition: AnyTransition {
-        .asymmetric(insertion: .opacity,
+    private var reminderKeys: [String] { allTasks.map(\.key).sorted() }
+    private var reminderTransition: AnyTransition {
+        .asymmetric(insertion: reduceMotion ? .opacity : .offset(y: -12).combined(with: .opacity),
                     removal: reduceMotion ? .opacity : .offset(x: 24).combined(with: .opacity))
     }
 
@@ -333,9 +334,10 @@ struct TaskListView: View {
         BeaconScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 reminderContent
-                    // React to persisted completion changes, not clicks: a failed
-                    // save must never make a reminder disappear.
+                    // Animate persisted additions/completions only. Search and section
+                    // navigation do not change these keys; failed saves do neither.
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: completedKeys)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: reminderKeys)
                 if destination == .today {
                     TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) })
                         .padding(.top, 16)
@@ -387,15 +389,15 @@ struct TaskListView: View {
                                 } mute: {
                                     Task { await model.toggleMuted(task) }
                                 } edit: { editing = .existing(task) }
-                                .transition(completionTransition)
+                                .transition(reminderTransition)
                             }
                         }
                         .overlay(alignment: .top) { Rectangle().fill(Palette.hairline).frame(height: 1) }
                     }
-                    .transition(completionTransition)
+                    .transition(reminderTransition)
                 }
             }
-            .transition(.opacity)
+            .transition(.asymmetric(insertion: reminderTransition, removal: .opacity))
         }
     }
 
