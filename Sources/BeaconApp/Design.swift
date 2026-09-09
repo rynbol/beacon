@@ -252,6 +252,9 @@ struct UrgencyColorSettings: View {
                 ColorPicker(selection: Binding(get: { colors.color(for: urgency) }, set: { colors.set($0, for: urgency) }), supportsOpacity: false) {
                     Label(urgency.title, systemImage: "flag").foregroundStyle(colors.color(for: urgency))
                 }.font(.taskMeta)
+                    .introspect(.colorPicker, on: .macOS(.v26)) { well in
+                        well.colorWellStyle = .minimal
+                    }
             }
             Button("Reset colors") { colors.reset() }.buttonStyle(.plain)
                 .font(.system(size: 11)).foregroundStyle(Palette.secondary)
@@ -271,5 +274,47 @@ struct BeaconScrollView<Content: View>: View {
                 scrollView.verticalScroller?.controlSize = .small
                 scrollView.horizontalScroller?.controlSize = .small
             }
+    }
+}
+
+/// Plain-text AppKit editing, with native undo and bounded multiline scrolling.
+struct BeaconNotesEditor: View {
+    @Binding var text: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextEditor(text: $text)
+            .font(.taskTitle)
+            .foregroundStyle(Palette.ink)
+            .scrollContentBackground(.hidden)
+            .focused($focused)
+            .introspect(.textEditor, on: .macOS(.v26)) { editor in
+                editor.isRichText = false
+                editor.allowsUndo = true
+                editor.drawsBackground = false
+                editor.textContainerInset = NSSize(width: 9, height: 11)
+                if let scrollView = editor.enclosingScrollView {
+                    scrollView.drawsBackground = false
+                    scrollView.scrollerStyle = .overlay
+                    scrollView.autohidesScrollers = true
+                    scrollView.verticalScroller?.controlSize = .small
+                }
+            }
+            .frame(height: 108)
+            .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.radius))
+            .overlay(alignment: .topLeading) {
+                if text.isEmpty {
+                    Text("Add a detail, a link, or a little context…")
+                        .font(.taskTitle).foregroundStyle(Palette.tertiary)
+                        .padding(.horizontal, 14).padding(.vertical, 11)
+                        .allowsHitTesting(false).accessibilityHidden(true)
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: Metrics.radius)
+                    .strokeBorder(focused ? Palette.secondary.opacity(0.5) : .clear, lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+            .accessibilityLabel("Notes")
     }
 }

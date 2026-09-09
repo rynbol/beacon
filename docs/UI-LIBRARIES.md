@@ -13,3 +13,9 @@ SwiftUI Introspect 26.0.2, exact-pinned in Package.swift and Beacon.xcodeproj. I
 BeaconScrollView configures the underlying NSScrollView with native overlay scrollbars and small controls on macOS 26. AppKit owns interaction and visibility; the old custom 900 ms timer and visibility toggling are removed. Overlay bars do not reserve content width. Introspection explicitly opts into macOS 26; future major versions require checking library support. If introspection cannot find a view, the ordinary SwiftUI ScrollView remains usable.
 
 The sample-data preview verified an uncluttered idle list, thin overlay during scrolling, and stable content alignment. No live reminder/calendar writes were used. Preview and X research tab were closed afterward.
+
+## Native editing controls
+
+Extended Introspect to TextEditor and ColorPicker on macOS 26. Notes now use NSTextView-backed plain-text editing with native undo, inset text, bounded scrolling, and the same overlay scroller style. The placeholder cannot intercept clicks. Urgency colors use AppKit's minimal color-well style with its native palette popover. Other buttons, menus, and date controls already use SwiftUI; no extra introspection is added where ordinary modifiers suffice.
+
+Sample preview verified existing notes load, newline entry, Cmd-Z restoration, and color palette opening. The draft was dismissed without saving. No live user data changed.

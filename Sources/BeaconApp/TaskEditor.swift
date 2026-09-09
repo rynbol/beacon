@@ -282,17 +282,7 @@ struct TaskEditor: View {
     private var notesField: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Notes").font(.fieldLabel).foregroundStyle(Palette.secondary)
-            TextField("Add a detail, a link, or a little context…", text: $notes, axis: .vertical)
-                .font(.taskTitle)
-                .textFieldStyle(.plain)
-                .lineLimit(2...6)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                        .fill(Palette.card)
-                )
+            BeaconNotesEditor(text: $notes)
         }
     }
 
