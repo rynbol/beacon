@@ -28,6 +28,7 @@ public struct PlannedNotification: Sendable, Equatable, Identifiable {
     public let kind: Kind
     public let trigger: PlannedTrigger
     public let title: String
+    public let subtitle: String
     public let body: String
     public let categoryIdentifier: String
     public let threadIdentifier: String
@@ -40,6 +41,7 @@ public struct PlannedNotification: Sendable, Equatable, Identifiable {
         kind: Kind,
         trigger: PlannedTrigger,
         title: String,
+        subtitle: String = "",
         body: String,
         categoryIdentifier: String,
         threadIdentifier: String
@@ -49,6 +51,7 @@ public struct PlannedNotification: Sendable, Equatable, Identifiable {
         self.kind = kind
         self.trigger = trigger
         self.title = title
+        self.subtitle = subtitle
         self.body = body
         self.categoryIdentifier = categoryIdentifier
         self.threadIdentifier = threadIdentifier

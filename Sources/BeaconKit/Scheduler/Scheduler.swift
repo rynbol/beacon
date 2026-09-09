@@ -84,7 +84,10 @@ public enum Scheduler {
                         minute: offset % 60
                     ),
                     title: candidate.task.title,
-                    body: "Still here whenever you are.",
+                    subtitle: NotificationCopy.subtitle(for: candidate.task),
+                    body: NotificationCopy.body(urgency: candidate.task.urgency,
+                        snooze: settings.interval(forSnoozeCount: state[candidate.task.key]?.snoozeCount ?? 0),
+                        followUp: true),
                     categoryIdentifier: taskCategory,
                     threadIdentifier: candidate.task.key
                 )
@@ -115,7 +118,9 @@ public enum Scheduler {
                     kind: .ladder,
                     trigger: .oneShot(rung.fire),
                     title: rung.title,
-                    body: "Snooze adds \(IntervalText.short(rung.snoozeOffer)).",
+                    subtitle: rung.subtitle,
+                    body: NotificationCopy.body(urgency: rung.urgency, snooze: rung.snoozeOffer,
+                                                followUp: rung.step > 0),
                     categoryIdentifier: taskCategory,
                     threadIdentifier: rung.taskKey
                 )
@@ -202,6 +207,8 @@ public enum Scheduler {
                     LadderRung(
                         taskKey: candidate.task.key,
                         title: candidate.task.title,
+                        subtitle: NotificationCopy.subtitle(for: candidate.task),
+                        urgency: candidate.task.urgency,
                         step: step,
                         fire: fire,
                         hash: candidate.hash,
@@ -263,8 +270,8 @@ public enum Scheduler {
             // scheduled, so a count here would go stale the moment it fired
             // during a stretch where the app never runs (DESIGN.md §3 C7).
             trigger: .repeatingDaily(hour: settings.digestHour, minute: 0),
-            title: "Tasks are waiting",
-            body: "Open Beacon when you are ready.",
+            title: "A moment for your day",
+            body: "See what needs your attention in Beacon.",
             categoryIdentifier: digestCategory,
             threadIdentifier: digestThread
         )
@@ -281,6 +288,8 @@ public enum Scheduler {
     struct LadderRung {
         let taskKey: String
         let title: String
+        let subtitle: String
+        let urgency: Urgency
         let step: Int
         var fire: Date
         let hash: UInt64

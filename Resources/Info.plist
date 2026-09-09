@@ -8,6 +8,8 @@
     <string>Beacon</string>
     <key>CFBundleIdentifier</key>
     <string>dev.dylan.beacon</string>
+    <key>CFBundleIconFile</key>
+    <string>Beacon.icns</string>
     <key>CFBundleExecutable</key>
     <string>Beacon</string>
     <key>CFBundlePackageType</key>

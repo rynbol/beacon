@@ -71,7 +71,7 @@ public final class NotificationScheduler {
     /// task — so the interval is named in the notification body instead.
     public func registerCategories() {
         let complete = UNNotificationAction(
-            identifier: Action.complete.rawValue, title: "Complete", options: []
+            identifier: Action.complete.rawValue, title: "Done", options: []
         )
         let snooze = UNNotificationAction(
             identifier: Action.snooze.rawValue, title: "Snooze", options: []
@@ -141,6 +141,7 @@ public final class NotificationScheduler {
     public static func request(for planned: PlannedNotification) -> UNNotificationRequest? {
         let content = UNMutableNotificationContent()
         content.title = planned.title
+        content.subtitle = planned.subtitle
         content.body = planned.body
         content.categoryIdentifier = planned.categoryIdentifier
         content.threadIdentifier = planned.threadIdentifier

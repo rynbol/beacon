@@ -27,6 +27,7 @@ final class RebuildRegressionTests: XCTestCase {
     func testNotificationSnoozeTextMatchesActionForEveryRung() {
         let plan = Scheduler.plan(now: now, tasks: [Fixture.task("a")],
             state: ["a": TaskState(snoozeCount: 2)], settings: .default, calendar: Fixture.calendar)
-        XCTAssertEqual(Set(plan.ofKind(.ladder).map(\.body)), ["Snooze adds 1 hour."])
+        XCTAssertFalse(plan.ofKind(.ladder).isEmpty)
+        XCTAssertTrue(plan.ofKind(.ladder).allSatisfy { $0.body.hasSuffix("Snooze for 1 hour.") })
     }
 }

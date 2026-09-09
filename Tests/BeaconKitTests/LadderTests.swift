@@ -68,7 +68,7 @@ final class LadderTests: XCTestCase {
             state: ["a": TaskState(snoozeCount: 2)],
             settings: settings, calendar: calendar
         )
-        XCTAssertEqual(plan.ofKind(.ladder).first?.body, "Snooze adds 1 hour.")
+        XCTAssertEqual(plan.ofKind(.ladder).first?.body, "A little nudge. Snooze for 1 hour.")
     }
 
     func testIntervalNamesReadAsPlainLanguage() {
