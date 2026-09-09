@@ -15,8 +15,8 @@ struct CalendarWorkspace: View {
         VStack(alignment: .leading, spacing: 18) {
             if model.feed.access == .granted {
                 HStack(spacing: 20) {
-                    calendarTab("Day", upcoming: false)
-                    calendarTab("Next 7 days", upcoming: true)
+                    SwiftcnTabs(selection: $model.showingUpcoming, options: [(false, "Day"), (true, "Next 7 days")])
+                        .onChange(of: model.showingUpcoming) { _, _ in model.refreshAfterNavigation() }
                     Spacer(minLength: 8)
                     CalendarConnection(model: model, compact: true).fixedSize(horizontal: true, vertical: false)
                 }
@@ -93,20 +93,6 @@ struct CalendarWorkspace: View {
         }.padding(.horizontal, 32).padding(.bottom, 22)
             .onChange(of: model.selectedDay) { _, _ in selectedID = nil }
             .onChange(of: model.hiddenIDs) { _, _ in selectedID = nil }
-    }
-    private func calendarTab(_ title: String, upcoming: Bool) -> some View {
-        let selected = model.showingUpcoming == upcoming
-        return Button {
-            model.showingUpcoming = upcoming
-            model.refreshAfterNavigation()
-        } label: {
-            Text(title).font(.system(size: 13, weight: selected ? .semibold : .regular))
-                .foregroundStyle(selected ? Palette.ink : Palette.secondary)
-                .frame(height: 38)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(selected ? Palette.ink : .clear).frame(height: 2)
-                }.contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
     }
     private func navigationButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -304,10 +290,8 @@ struct UpcomingCalendarAgenda: View {
                         Text("Filters")
                         let count = model.includeKeywords.count + model.excludeKeywords.count
                         if count > 0 { Text("\(count)").monospacedDigit() }
-                    }.font(.system(size: 12, weight: .medium))
-                        .padding(.horizontal, 10).frame(height: 32)
-                        .background(Palette.card, in: RoundedRectangle(cornerRadius: 7)).contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityLabel("Upcoming event filters")
+                    }
+                }.buttonStyle(SwiftcnButtonStyle()).accessibilityLabel("Upcoming event filters")
 
             }
             BeaconScrollView {
@@ -354,9 +338,11 @@ struct UpcomingKeywordSettings: View {
                 .font(.system(size: 11)).foregroundStyle(Palette.secondary)
             HStack {
                 TextField("Add keyword", text: draft)
-                    .textFieldStyle(.roundedBorder).accessibilityLabel("\(label) keyword")
+                    .textFieldStyle(.plain).padding(.horizontal, 10).frame(height: 32)
+                    .modifier(SwiftcnInputSurface()).accessibilityLabel("\(label) keyword")
                     .onSubmit { add(draft, excluding: excluding) }
                 Button("Add") { add(draft, excluding: excluding) }
+                    .buttonStyle(SwiftcnButtonStyle())
                     .disabled(draft.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel("Add \(label.lowercased()) keyword")
             }

@@ -225,7 +225,7 @@ struct TaskListView: View {
                         .buttonStyle(.plain).accessibilityLabel("Clear search")
                 }
             }.font(.system(size: 12)).foregroundStyle(Palette.secondary)
-                .padding(9).frame(width: 170).background(Palette.card, in: RoundedRectangle(cornerRadius: 8))
+                .padding(9).frame(width: 170).modifier(SwiftcnInputSurface(focused: searchFocused))
             if destination == .calendar {
                 Button { editing = .new(dictate: false, defaultDue: newReminderDue) } label: {
                     Image(systemName: "plus").frame(width: 30, height: 30)
@@ -254,8 +254,7 @@ struct TaskListView: View {
                         .background(Palette.band, in: RoundedRectangle(cornerRadius: 5))
                 }.buttonStyle(.plain).disabled(capture.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || capturing)
                     .accessibilityLabel("Add reminder")
-            }.padding(.horizontal, 12).padding(.vertical, 7).background(Palette.card, in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(captureFocused ? accent.opacity(0.55) : Palette.hairline, lineWidth: 1))
+            }.padding(.horizontal, 12).padding(.vertical, 7).modifier(SwiftcnInputSurface(focused: captureFocused))
             if !capture.isEmpty {
                 Text(capturePreview)
                     .font(.system(size: 11)).foregroundStyle(Palette.secondary).padding(.leading, 3)

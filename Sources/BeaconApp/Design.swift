@@ -90,16 +90,9 @@ struct Chip: View {
                     Image(systemName: systemImage).font(.system(size: 11, weight: .semibold))
                 }
             }
-            .font(.chip)
-            .foregroundStyle(isSelected ? Color.white : accent)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: Metrics.chipRadius, style: .continuous)
-                    .fill(isSelected ? accent : Palette.chipRest)
-            )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SwiftcnButtonStyle(variant: isSelected ? .primary : .outline, accent: accent))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -108,11 +101,7 @@ struct Card<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) { content }
-            .background(
-                RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                    .fill(Palette.card)
-            )
+        SwiftcnCard { content }
     }
 }
 
@@ -301,7 +290,7 @@ struct BeaconNotesEditor: View {
                 }
             }
             .frame(height: 108)
-            .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.radius))
+            .modifier(SwiftcnInputSurface(focused: focused))
             .overlay(alignment: .topLeading) {
                 if text.isEmpty {
                     Text("Add a detail, a link, or a little context…")
@@ -309,11 +298,6 @@ struct BeaconNotesEditor: View {
                         .padding(.horizontal, 14).padding(.vertical, 11)
                         .allowsHitTesting(false).accessibilityHidden(true)
                 }
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: Metrics.radius)
-                    .strokeBorder(focused ? Palette.secondary.opacity(0.5) : .clear, lineWidth: 1)
-                    .allowsHitTesting(false)
             }
             .accessibilityLabel("Notes")
     }

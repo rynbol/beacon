@@ -167,14 +167,8 @@ struct TaskEditor: View {
                 .foregroundStyle(Palette.ink)
             Spacer()
 
-            Button(action: save) {
-                Text(saving ? "Saving…" : "Save")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 16).frame(height: 34)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(canSave ? accent : Palette.tertiary))
-            }
-            .buttonStyle(.plain)
+            Button(saving ? "Saving…" : "Save", action: save)
+                .buttonStyle(SwiftcnButtonStyle(variant: .primary, accent: accent))
             .disabled(!canSave)
             .keyboardShortcut(.defaultAction)
         }
@@ -193,11 +187,7 @@ struct TaskEditor: View {
                     .focused($titleFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
-                    .background(
-                        RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                            .fill(Palette.card)
-                    )
-
+                    .modifier(SwiftcnInputSurface(focused: titleFocused))
 
                 micButton
             }

@@ -26,9 +26,9 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 header
-                Picker("Settings section", selection: $section) {
-                    ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).labelsHidden().padding(.horizontal, 24).padding(.bottom, 16)
+                SwiftcnTabs(selection: $section, options: Section.allCases.map { ($0, $0.rawValue) })
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24).padding(.bottom, 16)
                 BeaconScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         switch section {
