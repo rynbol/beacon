@@ -97,13 +97,13 @@ struct TaskListView: View {
                             if geometry.size.width >= 740 {
                                 HStack(alignment: .top, spacing: 0) {
                                     content
-                                    ScrollView {
+                                    BeaconScrollView {
                                         TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) })
                                     }.frame(width: 230).padding(.trailing, 32).padding(.leading, 12)
                                 }
                             } else {
                                 VStack(spacing: 18) {
-                                    ScrollView {
+                                    BeaconScrollView {
                                         TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) }, maxEvents: 1)
                                             .padding(.horizontal, 32)
                                     }.frame(maxHeight: min(220, geometry.size.height * 0.5))
@@ -185,7 +185,7 @@ struct TaskListView: View {
                     ? calendarModel.upcomingCalendars
                     : calendarModel.feed.calendarsWithEvents(in: range)
                 if !calendars.isEmpty {
-                    ScrollView {
+                    BeaconScrollView {
                         VStack(alignment: .leading, spacing: 10) {
                             ForEach(calendars) { calendar in
                                 Button { calendarModel.toggleCalendar(calendar.id) } label: {
@@ -342,7 +342,7 @@ struct TaskListView: View {
                 Spacer()
             }.frame(maxWidth: .infinity)
         } else {
-            ScrollView {
+            BeaconScrollView {
                 LazyVStack(alignment: .leading, spacing: 22) {
                     ForEach(displayGroups) { group in
                         VStack(alignment: .leading, spacing: 10) {

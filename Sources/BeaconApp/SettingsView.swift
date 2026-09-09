@@ -29,7 +29,7 @@ struct SettingsView: View {
                 Picker("Settings section", selection: $section) {
                     ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }.pickerStyle(.segmented).labelsHidden().padding(.horizontal, 24).padding(.bottom, 16)
-                ScrollView {
+                BeaconScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         switch section {
                         case .general:

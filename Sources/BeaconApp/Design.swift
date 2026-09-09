@@ -257,3 +257,24 @@ struct UrgencyColorSettings: View {
         }
     }
 }
+
+/// Keep the native indicator available during scrolling without idle chrome.
+struct BeaconScrollView<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    @State private var scrolling = false
+    @State private var showsIndicator = false
+
+    var body: some View {
+        ScrollView { content() }
+            .scrollIndicators(showsIndicator ? .visible : .never)
+            .onScrollPhaseChange { _, phase in
+                scrolling = phase != .idle
+                if scrolling { showsIndicator = true }
+            }
+            .task(id: scrolling) {
+                guard !scrolling else { return }
+                do { try await Task.sleep(for: .milliseconds(900)) } catch { return }
+                showsIndicator = false
+            }
+    }
+}

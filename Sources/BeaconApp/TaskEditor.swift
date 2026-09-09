@@ -102,7 +102,7 @@ struct TaskEditor: View {
 
             VStack(spacing: 0) {
                 header
-                ScrollView {
+                BeaconScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         if let error = model.writeError {
                             Text(error).font(.system(size: 12)).foregroundStyle(Palette.secondary)

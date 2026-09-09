@@ -70,7 +70,7 @@ struct CalendarWorkspace: View {
                     }
                     Text(model.selectedDay.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
-                    ScrollView {
+                    BeaconScrollView {
                         LazyVStack(spacing: 10) {
                             if events.isEmpty {
                                 Text(model.feed.isRefreshing ? "Loading this day…" : model.feed.calendars.isEmpty ? "No calendars are available. Add an account in Apple Calendar." : "No events to show for this day.")
@@ -261,7 +261,7 @@ private struct CalendarEventDetails: View {
                 .font(.system(size: 12)).foregroundStyle(Palette.secondary)
             if !event.location.isEmpty { Label(event.location, systemImage: "mappin").font(.system(size: 12)) }
             if !event.notes.isEmpty {
-                ScrollView { Text(event.notes).font(.system(size: 12)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 100)
+                BeaconScrollView { Text(event.notes).font(.system(size: 12)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 100)
             }
             if let url = event.meetingURL {
                 Button("Join meeting") { if !model.isPreview { NSWorkspace.shared.open(url) } }
@@ -301,7 +301,7 @@ struct UpcomingCalendarAgenda: View {
                 }.buttonStyle(.plain).accessibilityLabel("Upcoming event filters")
 
             }
-            ScrollView {
+            BeaconScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     if events.isEmpty {
                         Text(model.feed.isRefreshing ? "Loading upcoming events…" : "No upcoming events match. Check your keywords and calendar toggles.")
