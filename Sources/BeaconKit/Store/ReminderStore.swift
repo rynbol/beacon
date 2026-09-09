@@ -133,7 +133,7 @@ public final class ReminderStore {
     @discardableResult
     public func create(
         title: String, due: Date?, notes: String? = nil,
-        listID: String? = nil, recurrence: Recurrence? = nil
+        listID: String? = nil, recurrence: Recurrence? = nil, urgency: Urgency = .none
     ) throws -> String {
         guard access == .granted else { throw WriteError.notAuthorized }
 
@@ -143,6 +143,7 @@ public final class ReminderStore {
 
         let reminder = EKReminder(eventStore: store)
         reminder.calendar = calendar
+        reminder.priority = urgency.priority
         reminder.title = title
         if let notes, !notes.isEmpty { reminder.notes = notes }
         if let due { try Self.applyDue(due, to: reminder) }
@@ -171,7 +172,8 @@ public final class ReminderStore {
         notes: String,
         listID: String?,
         recurrence: Recurrence?,
-        preserveRecurrence: Bool = false
+        preserveRecurrence: Bool = false,
+        urgency: Urgency? = nil
     ) throws {
         guard access == .granted else { throw WriteError.notAuthorized }
         guard let reminder = store.calendarItem(withIdentifier: key) as? EKReminder else {
@@ -180,6 +182,7 @@ public final class ReminderStore {
 
         reminder.title = title
         reminder.notes = notes.isEmpty ? nil : notes
+        if let urgency { reminder.priority = urgency.priority }
 
         if let listID,
            let calendar = store.calendar(withIdentifier: listID),
@@ -289,7 +292,8 @@ public final class ReminderStore {
             isCompleted: reminder.isCompleted,
             completionDate: reminder.completionDate,
             notes: reminder.notes ?? "",
-            recurrence: reminder.recurrenceRules?.first.flatMap(recurrence)
+            recurrence: reminder.recurrenceRules?.first.flatMap(recurrence),
+            priority: reminder.priority
         )
     }
 

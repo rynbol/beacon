@@ -64,6 +64,7 @@ struct TaskEditor: View {
     @State private var due: Date?
     @State private var chip: DueChip?
     @State private var recurrence: Recurrence?
+    @State private var urgency: Urgency = .none
     @State private var listID: String?
     @State private var showingDatePicker = false
     @State private var loaded = false
@@ -310,6 +311,16 @@ struct TaskEditor: View {
                 }
                 InsetDivider(leading: 46)
             }
+            HStack(spacing: 10) {
+                Image(systemName: urgency == .none ? "circle.slash" : "flag")
+                    .foregroundStyle(UrgencyColors.shared.color(for: urgency)).frame(width: 30)
+                Picker("Urgency", selection: $urgency) {
+                    ForEach(Urgency.allCases, id: \.self) { level in
+                        Label(level.title, systemImage: level == .none ? "circle.slash" : "flag").tag(level)
+                    }
+                }.pickerStyle(.menu).font(.rowLabel)
+            }.padding(.horizontal, Metrics.gutter).frame(height: 46)
+            InsetDivider(leading: 46)
             if model.lists.count > 1 {
                 HStack {
                     Image(systemName: "list.bullet")
@@ -398,6 +409,7 @@ struct TaskEditor: View {
         }
 
         if case let .existing(task) = target {
+            urgency = task.urgency
             title = task.title
             notes = task.notes
             due = task.due
@@ -432,12 +444,12 @@ struct TaskEditor: View {
             case .new, .followUp:
                 await model.create(
                     title: cleaned, due: chosenDue, notes: notes,
-                    listID: listID, recurrence: recurrence
+                    listID: listID, recurrence: recurrence, urgency: urgency
                 )
             case let .existing(task):
                 await model.update(
                     task, title: cleaned, due: chosenDue, notes: notes,
-                    listID: listID, recurrence: recurrence
+                    listID: listID, recurrence: recurrence, urgency: urgency == task.urgency ? nil : urgency
                 )
             }
             saving = false

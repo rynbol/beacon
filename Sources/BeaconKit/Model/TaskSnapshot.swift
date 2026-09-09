@@ -27,6 +27,9 @@ public struct TaskSnapshot: Sendable, Equatable, Identifiable {
     public let isCompleted: Bool
     public let completionDate: Date?
 
+    public let priority: Int
+    public var urgency: Urgency { Urgency(priority: priority) }
+
     public let notes: String
     public let listID: String
 
@@ -49,8 +52,10 @@ public struct TaskSnapshot: Sendable, Equatable, Identifiable {
         isCompleted: Bool = false,
         completionDate: Date? = nil,
         notes: String = "",
-        recurrence: Recurrence? = nil
+        recurrence: Recurrence? = nil,
+        priority: Int = 0
     ) {
+        self.priority = priority
         self.key = key
         self.title = title
         self.listName = listName

@@ -157,14 +157,14 @@ final class TaskListModel {
 
     func create(
         title: String, due: Date?, notes: String,
-        listID: String?, recurrence: Recurrence?
+        listID: String?, recurrence: Recurrence?, urgency: Urgency = .none
     ) async {
         await write {
             let key = try store.create(
                 title: title, due: due,
                 notes: notes.isEmpty ? nil : notes,
                 listID: listID ?? selectedListID,
-                recurrence: recurrence
+                recurrence: recurrence, urgency: urgency
             )
             if due != nil { await sidecar.recordExplicitIntent(key: key, now: .now) }
         }
@@ -172,13 +172,14 @@ final class TaskListModel {
 
     func update(
         _ task: TaskSnapshot, title: String, due: Date?, notes: String,
-        listID: String?, recurrence: Recurrence?
+        listID: String?, recurrence: Recurrence?, urgency: Urgency? = nil
     ) async {
         await write {
             try store.update(
                 key: task.key, title: title, due: due,
                 notes: notes, listID: listID, recurrence: recurrence,
-                preserveRecurrence: task.isRecurring && task.recurrence == nil
+                preserveRecurrence: task.isRecurring && task.recurrence == nil,
+                urgency: urgency
             )
             if due != task.due, due != nil {
                 await sidecar.recordExplicitIntent(key: task.key, now: .now)
@@ -424,9 +425,9 @@ final class TaskListModel {
         let now = Date()
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now)!
         let tasks = [
-            TaskSnapshot(key: "preview-1", title: "Send the photos to Mom", listName: "Personal", due: now.addingTimeInterval(-3600), hasTimeOfDay: true),
-            TaskSnapshot(key: "preview-2", title: "Book a table for Friday", listName: "Personal", notes: "Somewhere with a patio."),
-            TaskSnapshot(key: "preview-3", title: "Take a proper screen break", listName: "Everyday", due: now.addingTimeInterval(3600), hasTimeOfDay: true, isRecurring: true),
+            TaskSnapshot(key: "preview-1", title: "Send the photos to Mom", listName: "Personal", due: now.addingTimeInterval(-3600), hasTimeOfDay: true, priority: 1),
+            TaskSnapshot(key: "preview-2", title: "Book a table for Friday", listName: "Personal", notes: "Somewhere with a patio.", priority: 9),
+            TaskSnapshot(key: "preview-3", title: "Take a proper screen break", listName: "Everyday", due: now.addingTimeInterval(3600), hasTimeOfDay: true, isRecurring: true, priority: 5),
             TaskSnapshot(key: "preview-4", title: "Water the plants", listName: "Home", due: tomorrow, hasTimeOfDay: true, isRecurring: true),
             TaskSnapshot(key: "preview-5", title: "Pick up the library books", listName: "Personal", due: tomorrow.addingTimeInterval(7200), hasTimeOfDay: true),
             TaskSnapshot(key: "preview-6", title: "Plan a weekend by the coast", listName: "Personal", due: Settings.somedayDate(from: now, calendar: .current)),

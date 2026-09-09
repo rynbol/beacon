@@ -35,6 +35,7 @@ struct SettingsView: View {
                         case .general:
                             accentSection
                             groupingSection
+                            UrgencyColorSettings()
                             siriSection
                             aboutSection
                         case .calendars:

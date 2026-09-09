@@ -1,4 +1,6 @@
 import SwiftUI
+import Observation
+import BeaconKit
 
 /// Accent choices. The app this copies added a colour setting in 1.0.3 for the
 /// same reason it is here: a permanently red interface reads as an alarm, and
@@ -201,6 +203,57 @@ struct BeaconGlyph: View {
                 p.addRoundedRect(in: CGRect(x:4,y:4,width:16,height:16), cornerSize: CGSize(width:4,height:4))
                 line([(8,12),(11,15),(16,9)])
             }
+        }
+    }
+}
+
+
+@MainActor @Observable
+final class UrgencyColors {
+    static let shared = UrgencyColors()
+    private let defaults: UserDefaults
+    private var overrides: [String: [Double]]
+
+    private init() {
+        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview"
+        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
+        overrides = defaults.dictionary(forKey: "urgencyColors") as? [String: [Double]] ?? [:]
+    }
+    func color(for urgency: Urgency) -> Color {
+        if let rgb = overrides[urgency.rawValue], rgb.count == 3,
+           rgb.allSatisfy({ $0.isFinite && (0...1).contains($0) }) {
+            return Color(red: rgb[0], green: rgb[1], blue: rgb[2])
+        }
+        switch urgency {
+        case .none: return Palette.secondary
+        case .low: return Color(red: 0.35, green: 0.49, blue: 0.62)
+        case .medium: return Color(red: 0.67, green: 0.47, blue: 0.18)
+        case .high: return Color(red: 0.72, green: 0.35, blue: 0.32)
+        }
+    }
+    func set(_ color: Color, for urgency: Urgency) {
+        guard urgency != .none, let rgb = NSColor(color).usingColorSpace(.sRGB) else { return }
+        overrides[urgency.rawValue] = [rgb.redComponent, rgb.greenComponent, rgb.blueComponent]
+        defaults.set(overrides, forKey: "urgencyColors")
+    }
+    func reset() {
+        overrides = [:]
+        defaults.removeObject(forKey: "urgencyColors")
+    }
+}
+
+struct UrgencyColorSettings: View {
+    private var colors: UrgencyColors { .shared }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Urgency colors").font(.fieldLabel).foregroundStyle(Palette.secondary)
+            ForEach([Urgency.low, .medium, .high], id: \.self) { urgency in
+                ColorPicker(selection: Binding(get: { colors.color(for: urgency) }, set: { colors.set($0, for: urgency) }), supportsOpacity: false) {
+                    Label(urgency.title, systemImage: "flag").foregroundStyle(colors.color(for: urgency))
+                }.font(.taskMeta)
+            }
+            Button("Reset colors") { colors.reset() }.buttonStyle(.plain)
+                .font(.system(size: 11)).foregroundStyle(Palette.secondary)
         }
     }
 }
