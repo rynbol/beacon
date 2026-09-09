@@ -14,3 +14,10 @@ Provider notes may contain HTML rather than plain text. CalendarNotes uses exact
 Expandable day/week lists now use eager vertical stacks to keep row heights deterministic during disclosure. The clipped detail region explicitly limits hit testing, and closing content becomes non-interactive. Close/follow-up callbacks check the selected event before acting, so an outgoing card cannot dismiss a newly selected one.
 
 Validation: 143 tests passed, including six new HTML and link regressions. The sample preview verified repeated expansion/collapse, Escape, switching events, clearing a selected event through search, clean rendered HTML notes, the Zoom action, and scrolling with an expanded panel. Preview and regular builds passed. No real meeting link was opened and no calendar event was modified. These checks cover the identified problems; they do not establish that every possible animation issue is eliminated.
+
+
+## Full-notes collapse correction
+
+The notes disclosure no longer switches the visible Text between five lines and unlimited lines during a height animation. CalendarEventNotes measures full and five-line heights separately, keeps the full text layout unchanged, and animates only a clipped viewport. Measurement changes do not animate; short notes have no expansion button. Clipped text cannot capture selection gestures outside the preview. Closing a full event now uses a small fixed vertical offset rather than moving its entire expanded height.
+
+Both app builds and 143 tests passed. Sample UI checks covered full notes → Show less, full notes → close event, and reopening the event at its five-line preview. Endpoint screenshots showed consistent layout; the UI tool does not provide frame-by-frame timing verification.

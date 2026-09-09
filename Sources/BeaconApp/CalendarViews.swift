@@ -258,7 +258,7 @@ private struct CalendarEventCard: View {
                         selectedID = nil
                         followUp(event)
                     }
-                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .offset(y: -12).combined(with: .opacity))
                 }
             }.clipped()
                 // Clipping alone does not limit SwiftUI hit testing. Outgoing
@@ -283,8 +283,6 @@ private struct CalendarEventDetails: View {
     var model: CalendarModel
     let close: () -> Void
     let followUp: () -> Void
-    @State private var showingFullNotes = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var notes: String { event.notes.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var location: String {
         let value = event.location.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -307,19 +305,7 @@ private struct CalendarEventDetails: View {
                 }.font(.system(size: 12))
             }
             if !notes.isEmpty {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text("Notes").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.secondary)
-                    Text(notes).font(.system(size: 12)).lineSpacing(3)
-                        .lineLimit(showingFullNotes ? nil : 5).textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    // Always offer expansion: even a short string can contain
-                    // more than five lines. No nested scroll area traps scrolling.
-                    Button(showingFullNotes ? "Show less" : "Show full notes") {
-                        showingFullNotes.toggle()
-                    }.buttonStyle(.plain).font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(TaskListModel.shared.accent.color)
-                }
+                CalendarEventNotes(text: notes)
             }
             HStack(alignment: .top, spacing: 8) {
                 ViewThatFits(in: .horizontal) {
@@ -335,7 +321,6 @@ private struct CalendarEventDetails: View {
             }
         }.padding(.leading, 29).padding(.trailing, 14).padding(.bottom, 16)
             .foregroundStyle(Palette.ink)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showingFullNotes)
     }
 
     @ViewBuilder private var actions: some View {
@@ -350,6 +335,76 @@ private struct CalendarEventDetails: View {
             Label("Follow-up reminder", systemImage: "plus")
         }.buttonStyle(SwiftcnButtonStyle())
             .accessibilityLabel("Create a follow-up reminder")
+    }
+}
+
+
+/// The full text never changes line limit during animation. Only its clipped
+/// viewport changes height, preventing text from reflowing halfway through close.
+private struct CalendarEventNotes: View {
+    let text: String
+    @State private var expanded = false
+    @State private var fullHeight: CGFloat = 0
+    @State private var previewHeight: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var measured: Bool { fullHeight > 0 && previewHeight > 0 }
+    private var overflows: Bool { measured && fullHeight > previewHeight + 1 }
+    private var viewportHeight: CGFloat {
+        guard measured else { return 0 }
+        return expanded ? fullHeight : min(fullHeight, previewHeight)
+    }
+
+    private var noteText: some View {
+        Text(text).font(.system(size: 12)).lineSpacing(3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("Notes").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.secondary)
+            noteText
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    updateHeight(height, full: true)
+                }
+                .background(alignment: .topLeading) {
+                    // Measure the five-line viewport independently, using the
+                    // same width, font, and spacing as the unchanged full text.
+                    Text(text).font(.system(size: 12)).lineSpacing(3).lineLimit(5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                            updateHeight(height, full: false)
+                        }
+                        .hidden().accessibilityHidden(true).allowsHitTesting(false)
+                }
+                .frame(height: viewportHeight, alignment: .top)
+                .clipped()
+                .contentShape(Rectangle())
+                // Don't allow selection to scroll clipped-off text into view.
+                .allowsHitTesting(expanded || !overflows)
+            if overflows {
+                Button(expanded ? "Show less" : "Show full notes") {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) {
+                        expanded.toggle()
+                    }
+                }.buttonStyle(.plain).font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(TaskListModel.shared.accent.color)
+            }
+        }
+    }
+
+    private func updateHeight(_ height: CGFloat, full: Bool) {
+        // Measurement updates (including window resizing) aren't disclosure
+        // changes and must not start another animation or move the text baseline.
+        let value = ceil(height)
+        guard value != (full ? fullHeight : previewHeight) else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            if full { fullHeight = value } else { previewHeight = value }
+        }
     }
 }
 
