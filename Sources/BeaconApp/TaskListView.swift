@@ -38,6 +38,7 @@ struct TaskListView: View {
     @State private var search = ""
     @State private var capture = ""
     @State private var capturing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var captureFocused: Bool
     @FocusState private var searchFocused: Bool
 
@@ -68,8 +69,11 @@ struct TaskListView: View {
     }
     private var displayGroups: [DisplayGroup] {
         if model.grouping == .list {
-            return Sections.groupByList(visibleTasks, now: .now, calendar: .current).enumerated().map {
-                DisplayGroup(id: "list-\($0.offset)", title: $0.element.name, tasks: $0.element.tasks)
+            return Sections.groupByList(visibleTasks, now: .now, calendar: .current).map { group in
+                // Keep identities stable when completing the last row in a list.
+                let first = group.tasks.first!
+                let kind = first.isCompleted ? "completed" : first.isSomeday(now: .now, horizon: Settings.default.somedayHorizon) ? "someday" : "list"
+                return DisplayGroup(id: "\(kind)-\(group.name)", title: group.name, tasks: group.tasks)
             }
         }
         return Sections.group(visibleTasks, now: .now, calendar: .current).map {
@@ -77,6 +81,13 @@ struct TaskListView: View {
         }
     }
     private var accent: Color { model.accent.color }
+    private var completedKeys: [String] {
+        allTasks.filter(\.isCompleted).map(\.key).sorted()
+    }
+    private var completionTransition: AnyTransition {
+        .asymmetric(insertion: .opacity,
+                    removal: reduceMotion ? .opacity : .offset(x: 24).combined(with: .opacity))
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -322,6 +333,9 @@ struct TaskListView: View {
         BeaconScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 reminderContent
+                    // React to persisted completion changes, not clicks: a failed
+                    // save must never make a reminder disappear.
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: completedKeys)
                 if destination == .today {
                     TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) })
                         .padding(.top, 16)
@@ -349,6 +363,7 @@ struct TaskListView: View {
                     .font(.system(size: 12)).foregroundStyle(Palette.secondary)
                 Spacer()
             }.frame(maxWidth: .infinity).padding(.vertical, 24)
+                .transition(.opacity)
         } else {
             LazyVStack(alignment: .leading, spacing: 22) {
                 ForEach(displayGroups) { group in
@@ -372,12 +387,15 @@ struct TaskListView: View {
                                 } mute: {
                                     Task { await model.toggleMuted(task) }
                                 } edit: { editing = .existing(task) }
+                                .transition(completionTransition)
                             }
                         }
                         .overlay(alignment: .top) { Rectangle().fill(Palette.hairline).frame(height: 1) }
                     }
+                    .transition(completionTransition)
                 }
             }
+            .transition(.opacity)
         }
     }
 
