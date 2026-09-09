@@ -117,6 +117,16 @@ struct TaskListView: View {
                 }, initiallyCalendars: settingsStartsWithCalendars, initiallyNotifications: settingsStartsWithNotifications)
             }
         }
+        .disabled(model.notificationSnoozeTask != nil)
+        .accessibilityHidden(model.notificationSnoozeTask != nil)
+        .overlay {
+            if let task = model.notificationSnoozeTask {
+                NotificationSnoozeChooser(model: model, task: task).id(task.key)
+            }
+        }
+        .onChange(of: model.notificationSnoozeTask?.key) { _, key in
+            if key != nil { showingSchedule = false }
+        }
         .sheet(isPresented: $showingSchedule) {
             if let plan = model.plan { ScheduleView(plan: plan, accent: accent) }
         }
@@ -126,9 +136,9 @@ struct TaskListView: View {
         }
         .frame(minWidth: 760, minHeight: 580)
         .background {
-            Button("Search reminders") { searchFocused = true }.keyboardShortcut("f").disabled(editing != nil || showingSettings || showingSchedule).hidden()
+            Button("Search reminders") { searchFocused = true }.keyboardShortcut("f").disabled(editing != nil || showingSettings || showingSchedule || model.notificationSnoozeTask != nil).hidden()
             Button("New reminder") { editing = .new(dictate: false, defaultDue: newReminderDue) }
-                .keyboardShortcut("n").disabled(editing != nil || showingSettings || showingSchedule).hidden()
+                .keyboardShortcut("n").disabled(editing != nil || showingSettings || showingSchedule || model.notificationSnoozeTask != nil).hidden()
         }
     }
 
@@ -355,7 +365,7 @@ struct TaskListView: View {
                         VStack(spacing: 0) {
                             ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
                                 TaskRow(task: task, accent: accent, isMuted: model.isMuted(task),
-                                        snoozeOptions: model.snoozeOptions(for: task), isLast: index == group.tasks.count - 1) {
+                                        snoozeOptions: model.snoozeOptions(for: task), chooseSnooze: { model.notificationSnoozeTask = task }, isLast: index == group.tasks.count - 1) {
                                     Task { await model.toggleCompleted(task) }
                                 } snooze: { interval in
                                     Task { await model.snooze(task, by: interval) }
@@ -450,6 +460,7 @@ struct TaskRow: View {
     let accent: Color
     let isMuted: Bool
     let snoozeOptions: [(label: String, interval: TimeInterval)]
+    let chooseSnooze: () -> Void
     let isLast: Bool
     let toggle: () -> Void
     let snooze: (TimeInterval) -> Void
@@ -523,6 +534,7 @@ struct TaskRow: View {
                         ForEach(snoozeOptions, id: \.label) { option in
                             Button("Snooze \(option.label)") { snooze(option.interval) }
                         }
+                        Button("More times…", action: chooseSnooze)
                         Divider()
                         Button(isMuted ? "Alert me about this again" : "Stop alerting me about this",
                                action: mute)
@@ -636,5 +648,71 @@ private struct AccessDeniedView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Shared by notification Snooze… and the row's More times… action.
+private struct NotificationSnoozeChooser: View {
+    var model: TaskListModel
+    let task: TaskSnapshot
+    @State private var saving = false
+    @State private var error: String?
+
+    private var intervals: [TimeInterval] {
+        Array(Set(model.settings.ladder.filter { $0 > 0 })).sorted()
+    }
+
+    var body: some View {
+        ZStack {
+            Button { model.notificationSnoozeTask = nil } label: {
+                Color.black.opacity(0.12).contentShape(Rectangle())
+            }.buttonStyle(.plain).disabled(saving).accessibilityLabel("Dismiss snooze options")
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("Snooze").font(.system(size: 17, weight: .semibold))
+                    Spacer()
+                    Button { model.notificationSnoozeTask = nil } label: {
+                        Image(systemName: "xmark").frame(width: 28, height: 28)
+                    }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
+                        .disabled(saving).accessibilityLabel("Close snooze options")
+                }
+                Text(task.title).font(.taskTitle).lineLimit(3)
+                if let error { Text(error).font(.taskMeta).foregroundStyle(Palette.secondary) }
+                BeaconScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(intervals, id: \.self) { interval in
+                            Button { apply(interval) } label: {
+                                HStack {
+                                    Text(IntervalText.short(interval))
+                                    Spacer()
+                                    Image(systemName: "arrow.right").font(.system(size: 11))
+                                }.padding(.horizontal, 12).frame(height: 36)
+                                    .contentShape(Rectangle())
+                            }.buttonStyle(SwiftcnButtonStyle(variant: .quiet))
+                                .disabled(saving).accessibilityLabel("Snooze for \(IntervalText.short(interval))")
+                        }
+                    }
+                }.frame(height: min(CGFloat(intervals.count) * 38, 286))
+            }
+            .padding(20).frame(width: 340)
+            .foregroundStyle(Palette.ink).background(Palette.wash, in: RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.12), radius: 20, y: 8).padding(24)
+        }
+    }
+
+    private func apply(_ interval: TimeInterval) {
+        guard !saving else { return }
+        saving = true
+        Task {
+            await model.refresh()
+            guard let current = model.task(withKey: task.key), !current.isCompleted else {
+                error = "This reminder is no longer available."
+                saving = false
+                return
+            }
+            await model.snooze(current, by: interval)
+            if let message = model.writeError { error = message; saving = false }
+            else { model.notificationSnoozeTask = nil }
+        }
     }
 }

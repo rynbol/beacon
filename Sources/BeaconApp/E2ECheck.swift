@@ -28,7 +28,45 @@ enum E2ECheck {
         static var isCleanupOnly: Bool { flag("--cleanup") }
 
         /// True for any headless run, so the normal app start-up is skipped.
-        static var isHarnessRun: Bool { isRequested || isCleanupOnly }
+        static var isHarnessRun: Bool { isRequested || isCleanupOnly || isNotificationPreview }
+
+        static var isNotificationPreview: Bool { flag("--notification-preview") }
+
+        /// One silent, disposable notification. No reminder reads/writes or
+        /// replacement scheduling; removes only its own UUID after inspection.
+        @MainActor
+        static func runNotificationPreview() async -> Int32 {
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+                try? "Notification preview unavailable: no existing authorization.".write(toFile: reportPath, atomically: true, encoding: .utf8)
+                return 1
+            }
+            let identifier = "beacon-preview-" + UUID().uuidString
+            defer {
+                center.removePendingNotificationRequests(withIdentifiers: [identifier])
+                center.removeDeliveredNotifications(withIdentifiers: [identifier])
+            }
+            NotificationScheduler().registerCategories()
+            let task = TaskSnapshot(key: identifier, title: "Beacon notification preview", priority: 1)
+            let content = UNMutableNotificationContent()
+            content.title = NotificationCopy.title(for: task)
+            content.categoryIdentifier = Scheduler.taskCategory
+            content.threadIdentifier = identifier
+            do {
+                try await center.add(UNNotificationRequest(identifier: identifier, content: content,
+                    trigger: UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)))
+                try await Task.sleep(for: .seconds(6))
+                let delivered = await center.deliveredNotifications().contains { $0.request.identifier == identifier }
+                try "Preview delivered: \(delivered). It will be removed after inspection.".write(toFile: reportPath, atomically: true, encoding: .utf8)
+                try await Task.sleep(for: .seconds(35))
+                try "Preview delivered: \(delivered). Temporary notification removed.".write(toFile: reportPath, atomically: true, encoding: .utf8)
+                return delivered ? 0 : 1
+            } catch {
+                try? "Notification preview failed: \(error.localizedDescription)".write(toFile: reportPath, atomically: true, encoding: .utf8)
+                return 1
+            }
+        }
 
         private static func flag(_ name: String) -> Bool {
             CommandLine.arguments.contains(name)

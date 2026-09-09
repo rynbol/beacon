@@ -1,29 +1,32 @@
 # Notification style
 
-Beacon keeps notifications task-first, with a short context line and restrained wording. macOS controls the banner layout, fonts, and colors; urgency is expressed in text rather than relying on colored emoji or pretending the app can theme Notification Center.
+Beacon task alerts show only the reminder title, followed by an urgency flag: none has no suffix, low uses ⚐, medium uses ⚑, and high uses 🚩. Subtitle and body are empty. List names, notes, and snooze instructions are omitted.
 
-## References
+macOS controls notification layout and supports plain text titles, so these symbols have fixed system appearances rather than the app’s configurable urgency colors. Urgency does not change timing, sound, Focus behavior, or permissions.
 
-- [Things: Setting a Reminder](https://culturedcode.com/things/support/articles/2803585/) describes reminders as gentle nudges and supports explicit snooze durations. Beacon keeps its existing persistent reminder behavior rather than adopting Things' single-alert behavior.
-- [Todoist: Introduction to reminders](https://www.todoist.com/help/todoist/features/introduction-to-reminders-9PezfU) distinguishes scheduled, relative, and recurring reminders and explains snoozing. Beacon similarly keeps notification wording tied to the actual snooze interval.
-- [Apple: Notifications](https://developer.apple.com/design/human-interface-guidelines/notifications) recommends concise, informative content. [UNMutableNotificationContent](https://developer.apple.com/documentation/usernotifications/unmutablenotificationcontent) supplies title, subtitle, body, and action-category metadata.
+## Actions
 
-These are product/documentation references, not a claim that the examples below copy another app's notification text.
+Task notifications offer **Snooze…** and **Done**. Snooze opens a compact chooser in Beacon using the configured positive snooze intervals, sorted and deduplicated. Defaults are 15 minutes, 30 minutes, 1 hour, 2 hours, 4 hours, 8 hours, and 1 day. Cancel, Escape, and clicking outside do not change the reminder. Saving rechecks the reminder and uses the existing recurring/one-off snooze behavior. Errors remain visible in the chooser. The row’s More times… action opens the same interface.
 
-## Treatment
+The foreground action is necessary because native notification actions do not provide a custom nested time menu. Legacy Snooze and Snooze longer identifiers remain supported for older delivered notifications.
 
-- Title: the reminder's own title.
-- Subtitle: `High urgency · Work`, `Medium urgency · Personal`, or `Low urgency · Work`. None is omitted; an empty list name adds no separator. Long list names are bounded, with whitespace collapsed.
-- Initial body: `A little nudge. Snooze for 15 minutes.` Low uses `When you have a moment.` High uses `Give this one a moment.`
-- Follow-up: `Still on your list. Snooze for 15 minutes.` The interval always comes from the current snooze rung, including for named daily reminders.
-- Daily overview: `A moment for your day` / `See what needs your attention in Beacon.` No counts or relative dates that become false while the app is closed.
-- Actions: Snooze, Snooze longer, Done. Existing identifiers and task routing remain intact.
-- Icon: the existing lighthouse mark in cream on Beacon teal. The bundled `.icns` is rendered at all Mac sizes by `Scripts/generate-app-icon.swift`, then assembled with `iconutil -c icns build/Beacon.iconset -o Resources/Beacon.icns`.
+The daily overview remains “A moment for your day” / “See what needs your attention in Beacon.” Existing delivered notifications retain their previous text; new requests use the current format.
 
-Urgency changes context and tone only. It does not change firing times, sound, Focus behavior, or notification permissions. Private notes are not added to notification previews. Existing delivered notifications keep their old content; new pending requests receive the new copy when the updated app rebuilds the plan.
+## Icon
+
+The existing cream lighthouse on teal is bundled as Beacon.icns and referenced by Info.plist. The build script registers the packaged app with LaunchServices after signing. On the development machine, older duplicate Beacon registrations were removed and the obsolete running copy was closed. No reminders or notification database were deleted.
 
 ## Verification
 
-Unit coverage includes all urgency levels, empty/long list names, whitespace and Unicode handling, exact snooze intervals, unchanged firing times across urgency levels, and native request subtitle/body/action routing. The icon was rendered and visually inspected. Live banner rendering, icon-cache refresh, sound, and action-button clicks are separate device checks; a request-construction test is not proof of delivery.
+133 unit tests and 27 app integration checks passed. Coverage includes every urgency suffix, Unicode titles, empty task subtitle/body, unchanged scheduling across urgency levels, native category identifiers and foreground options, and persisted snooze dates. Integration test reminders were cleaned up. The normal signed Mac build passed.
 
-Validation: 133 unit tests and 27 app integration checks passed. The normal Mac build passed, including signature verification, and the packaged bundle contains the icon referenced by its Info.plist. Integration test reminders were removed successfully.
+The chooser was visually checked with sample data, including keyboard blocking, failed-save feedback, and Escape dismissal. A disposable native notification was confirmed delivered and removed using its unique identifier. This does not verify a live notification action click. The icon resource was inspected, but the final Notification Center icon appearance could not be verified through UI automation.
+
+For a delivery-only preview, launch the built app with `--notification-preview --report <path>`. This requires existing notification permission, skips normal reminder access/scheduling, and removes only its own temporary notification. It has no real task action target.
+
+## Platform references
+
+- [Apple notification guidance](https://developer.apple.com/design/human-interface-guidelines/notifications)
+- [Notification title](https://developer.apple.com/documentation/usernotifications/unmutablenotificationcontent/title)
+- [Foreground actions](https://developer.apple.com/documentation/usernotifications/unnotificationactionoptions/foreground)
+- [Handling notification actions](https://developer.apple.com/documentation/usernotifications/handling-notifications-and-notification-related-actions)

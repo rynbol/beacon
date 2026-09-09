@@ -22,7 +22,9 @@ final class NotificationDelegate: NSObject, NSApplicationDelegate, UNUserNotific
         // holds `.task` until a window actually appears, so a launch that never
         // shows one — which is every headless run of these tools — sat idle and
         // wrote nothing at all.
-        if E2ECheck.isCleanupOnly {
+        if E2ECheck.isNotificationPreview {
+            Task { exit(await E2ECheck.runNotificationPreview()) }
+        } else if E2ECheck.isCleanupOnly {
             Task { exit(await E2ECheck.runCleanupOnly()) }
         } else if E2ECheck.isRequested {
             Task { exit(await E2ECheck.run()) }
@@ -65,6 +67,14 @@ final class NotificationDelegate: NSObject, NSApplicationDelegate, UNUserNotific
         switch action {
         case NotificationScheduler.Action.complete.rawValue:
             await model.complete(task)
+        case NotificationScheduler.Action.chooseSnooze.rawValue:
+            model.notificationSnoozeTask = task
+            NSApp.activate(ignoringOtherApps: true)
+            if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
+                window.makeKeyAndOrderFront(nil)
+            } else {
+                NSWorkspace.shared.open(Bundle.main.bundleURL)
+            }
         case NotificationScheduler.Action.snooze.rawValue:
             await model.snoozeOneRung(task, extra: 0)
         case NotificationScheduler.Action.snoozeLonger.rawValue:

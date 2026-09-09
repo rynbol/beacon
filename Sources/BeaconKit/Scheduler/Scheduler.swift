@@ -83,11 +83,8 @@ public enum Scheduler {
                         hour: (settings.digestHour + offset / 60) % 24,
                         minute: offset % 60
                     ),
-                    title: candidate.task.title,
-                    subtitle: NotificationCopy.subtitle(for: candidate.task),
-                    body: NotificationCopy.body(urgency: candidate.task.urgency,
-                        snooze: settings.interval(forSnoozeCount: state[candidate.task.key]?.snoozeCount ?? 0),
-                        followUp: true),
+                    title: NotificationCopy.title(for: candidate.task),
+                    body: "",
                     categoryIdentifier: taskCategory,
                     threadIdentifier: candidate.task.key
                 )
@@ -118,9 +115,7 @@ public enum Scheduler {
                     kind: .ladder,
                     trigger: .oneShot(rung.fire),
                     title: rung.title,
-                    subtitle: rung.subtitle,
-                    body: NotificationCopy.body(urgency: rung.urgency, snooze: rung.snoozeOffer,
-                                                followUp: rung.step > 0),
+                    body: "",
                     categoryIdentifier: taskCategory,
                     threadIdentifier: rung.taskKey
                 )
@@ -206,13 +201,10 @@ public enum Scheduler {
                 rungs.append(
                     LadderRung(
                         taskKey: candidate.task.key,
-                        title: candidate.task.title,
-                        subtitle: NotificationCopy.subtitle(for: candidate.task),
-                        urgency: candidate.task.urgency,
+                        title: NotificationCopy.title(for: candidate.task),
                         step: step,
                         fire: fire,
-                        hash: candidate.hash,
-                        snoozeOffer: settings.interval(forSnoozeCount: snoozeCount)
+                        hash: candidate.hash
                     )
                 )
             }
@@ -288,11 +280,8 @@ public enum Scheduler {
     struct LadderRung {
         let taskKey: String
         let title: String
-        let subtitle: String
-        let urgency: Urgency
         let step: Int
         var fire: Date
         let hash: UInt64
-        let snoozeOffer: TimeInterval
     }
 }

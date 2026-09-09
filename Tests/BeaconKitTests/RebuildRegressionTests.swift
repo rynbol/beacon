@@ -24,10 +24,10 @@ final class RebuildRegressionTests: XCTestCase {
         XCTAssertTrue(plan.ofKind(.taskBeacon).isEmpty)
     }
 
-    func testNotificationSnoozeTextMatchesActionForEveryRung() {
+    func testNotificationDescriptionsStayEmptyForEveryRung() {
         let plan = Scheduler.plan(now: now, tasks: [Fixture.task("a")],
             state: ["a": TaskState(snoozeCount: 2)], settings: .default, calendar: Fixture.calendar)
         XCTAssertFalse(plan.ofKind(.ladder).isEmpty)
-        XCTAssertTrue(plan.ofKind(.ladder).allSatisfy { $0.body.hasSuffix("Snooze for 1 hour.") })
+        XCTAssertTrue(plan.ofKind(.ladder).allSatisfy { $0.body.isEmpty })
     }
 }

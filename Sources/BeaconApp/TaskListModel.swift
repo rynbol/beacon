@@ -11,6 +11,7 @@ final class TaskListModel {
     static let shared = TaskListModel()
 
     // Presentation
+    var notificationSnoozeTask: TaskSnapshot?
     private(set) var groups: [TaskGroup] = []
     private(set) var access: ReminderAccess = .notDetermined
     private(set) var refusal: FetchRefusal?

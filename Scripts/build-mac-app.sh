@@ -34,4 +34,6 @@ else
 fi
 codesign --verify --deep --strict "$APP"
 test -f "$APP/Contents/Resources/Metadata.appintents/extract.actionsdata"
+# Refresh this bundle's registered icon after replacing a development build.
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$PWD/$APP"
 echo "Built $APP with Siri/Shortcuts metadata"

@@ -47,8 +47,8 @@ final class SpacingTests: XCTestCase {
         let due = Fixture.at(2026, 8, 26, 14, 0)
         let rungs = (0..<25).map {
             Scheduler.LadderRung(
-                taskKey: "t\($0)", title: "t", subtitle: "", urgency: .none, step: 0, fire: due,
-                hash: UInt64($0), snoozeOffer: 900
+                taskKey: "t\($0)", title: "t", step: 0, fire: due,
+                hash: UInt64($0)
             )
         }
         let (kept, dropped) = Scheduler.applySpacing(to: rungs, settings: settings)

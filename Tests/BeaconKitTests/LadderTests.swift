@@ -62,13 +62,13 @@ final class LadderTests: XCTestCase {
         XCTAssertEqual(heard.count, 3)
     }
 
-    func testBodyNamesTheIntervalTheSnoozeButtonWillApply() {
+    func testBodyDoesNotExplainSnoozeControls() {
         let plan = Scheduler.plan(
             now: now, tasks: [Fixture.task("a", due: Fixture.at(2026, 8, 26, 9, 0))],
             state: ["a": TaskState(snoozeCount: 2)],
             settings: settings, calendar: calendar
         )
-        XCTAssertEqual(plan.ofKind(.ladder).first?.body, "A little nudge. Snooze for 1 hour.")
+        XCTAssertEqual(plan.ofKind(.ladder).first?.body, "")
     }
 
     func testIntervalNamesReadAsPlainLanguage() {

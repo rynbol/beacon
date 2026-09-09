@@ -14,6 +14,7 @@ public final class NotificationScheduler {
     public enum Action: String {
         case complete = "BEACON_COMPLETE"
         case snooze = "BEACON_SNOOZE"
+        case chooseSnooze = "BEACON_CHOOSE_SNOOZE"
         case snoozeLonger = "BEACON_SNOOZE_LONGER"
     }
 
@@ -66,23 +67,20 @@ public final class NotificationScheduler {
         (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
-    /// Registers the action buttons. Titles are fixed, because a category is
-    /// registered once for the whole app while the snooze interval changes per
-    /// task — so the interval is named in the notification body instead.
-    public func registerCategories() {
+    /// Build separately so action labels and foreground routing can be tested
+    /// without changing the user's registered categories.
+    public static func categories() -> Set<UNNotificationCategory> {
         let complete = UNNotificationAction(
             identifier: Action.complete.rawValue, title: "Done", options: []
         )
         let snooze = UNNotificationAction(
-            identifier: Action.snooze.rawValue, title: "Snooze", options: []
+            identifier: Action.chooseSnooze.rawValue, title: "Snooze…", options: [.foreground]
         )
-        let longer = UNNotificationAction(
-            identifier: Action.snoozeLonger.rawValue, title: "Snooze longer", options: []
-        )
+
 
         let task = UNNotificationCategory(
             identifier: Scheduler.taskCategory,
-            actions: [snooze, longer, complete],
+            actions: [snooze, complete],
             intentIdentifiers: [],
             // A swipe-away counts as a response, which is the only way an
             // ignored notification can hand the app any execution time at all.
@@ -94,7 +92,11 @@ public final class NotificationScheduler {
             intentIdentifiers: [],
             options: [.customDismissAction]
         )
-        center.setNotificationCategories([task, digest])
+        return [task, digest]
+    }
+
+    public func registerCategories() {
+        center.setNotificationCategories(Self.categories())
     }
 
     /// Replaces the pending set with exactly this plan.
