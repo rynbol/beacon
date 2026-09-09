@@ -83,17 +83,19 @@ struct TaskListView: View {
             sidebar
             Rectangle().fill(Palette.hairline).frame(width: 1)
             VStack(alignment: .leading, spacing: 0) {
-                topbar
-                banner
-                if destination == .calendar {
-                    CalendarWorkspace(model: calendarModel, search: search, followUp: { editing = .followUp($0) }, openFilters: {
-                        settingsStartsWithCalendars = true
-                        showingSettings = true
-                    })
-                } else {
-                    quickCapture
-                    content
-                }
+                VStack(alignment: .leading, spacing: 0) {
+                    topbar
+                    banner
+                    if destination == .calendar {
+                        CalendarWorkspace(model: calendarModel, search: search, followUp: { editing = .followUp($0) }, openFilters: {
+                            settingsStartsWithCalendars = true
+                            showingSettings = true
+                        })
+                    } else {
+                        quickCapture
+                        content
+                    }
+                }.modifier(BeaconSectionMotion(value: destination))
                 footer
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

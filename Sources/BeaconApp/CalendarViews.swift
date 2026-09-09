@@ -21,74 +21,76 @@ struct CalendarWorkspace: View {
                     CalendarConnection(model: model, compact: true).fixedSize(horizontal: true, vertical: false)
                 }
                 .overlay(alignment: .bottom) { Rectangle().fill(Palette.hairline).frame(height: 1) }
-                if model.showingUpcoming {
-                    UpcomingCalendarAgenda(model: model, search: search, followUp: followUp, openFilters: openFilters)
-                } else {
-                    HStack(spacing: 8) {
-                        navigationButton("chevron.left", label: "Previous week") { moveWeek(-1) }
-                        Text(model.selectedDay.formatted(.dateTime.month(.wide).year()))
-                            .font(.system(size: 16, weight: .medium)).lineLimit(1)
-                        navigationButton("chevron.right", label: "Next week") { moveWeek(1) }
-                        Spacer(minLength: 8)
-                        Button { model.selectDay(.now) } label: {
-                            Text("Today").padding(.horizontal, 12).frame(height: 36)
-                                .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
-                        }.buttonStyle(.plain)
-                        Button { showingDatePicker.toggle() } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "calendar")
-                                Text(model.selectedDay.formatted(.dateTime.month(.abbreviated).day().year())).lineLimit(1)
-                            }.font(.system(size: 12)).padding(.horizontal, 12).frame(height: 36)
-                                .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
-                        }.buttonStyle(.plain).accessibilityLabel("Choose date")
-                            .popover(isPresented: $showingDatePicker) {
-                                VStack(alignment: .trailing, spacing: 8) {
-                                    Button { showingDatePicker = false } label: {
-                                        Image(systemName: "xmark").frame(width: 28, height: 28).contentShape(Rectangle())
-                                    }.buttonStyle(.plain).accessibilityLabel("Close date picker")
-                                    DatePicker("Choose date", selection: Binding(
-                                        get: { model.selectedDay },
-                                        set: { model.selectDay($0); showingDatePicker = false }
-                                    ), displayedComponents: .date).datePickerStyle(.graphical).labelsHidden()
-                                }.padding(14).frame(width: 290)
+                VStack(alignment: .leading, spacing: 18) {
+                    if model.showingUpcoming {
+                        UpcomingCalendarAgenda(model: model, search: search, followUp: followUp, openFilters: openFilters)
+                    } else {
+                        HStack(spacing: 8) {
+                            navigationButton("chevron.left", label: "Previous week") { moveWeek(-1) }
+                            Text(model.selectedDay.formatted(.dateTime.month(.wide).year()))
+                                .font(.system(size: 16, weight: .medium)).lineLimit(1)
+                            navigationButton("chevron.right", label: "Next week") { moveWeek(1) }
+                            Spacer(minLength: 8)
+                            Button { model.selectDay(.now) } label: {
+                                Text("Today").padding(.horizontal, 12).frame(height: 36)
+                                    .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                            Button { showingDatePicker.toggle() } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar")
+                                    Text(model.selectedDay.formatted(.dateTime.month(.abbreviated).day().year())).lineLimit(1)
+                                }.font(.system(size: 12)).padding(.horizontal, 12).frame(height: 36)
+                                    .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
+                            }.buttonStyle(.plain).accessibilityLabel("Choose date")
+                                .popover(isPresented: $showingDatePicker) {
+                                    VStack(alignment: .trailing, spacing: 8) {
+                                        Button { showingDatePicker = false } label: {
+                                            Image(systemName: "xmark").frame(width: 28, height: 28).contentShape(Rectangle())
+                                        }.buttonStyle(.plain).accessibilityLabel("Close date picker")
+                                        DatePicker("Choose date", selection: Binding(
+                                            get: { model.selectedDay },
+                                            set: { model.selectDay($0); showingDatePicker = false }
+                                        ), displayedComponents: .date).datePickerStyle(.graphical).labelsHidden()
+                                    }.padding(14).frame(width: 290)
+                                }
+                        }.foregroundStyle(Palette.secondary)
+                        HStack(spacing: 7) {
+                            ForEach(model.days, id: \.self) { day in
+                                let active = Calendar.current.isDate(day, inSameDayAs: model.selectedDay)
+                                Button { model.selectDay(day) } label: {
+                                    VStack(spacing: 8) {
+                                        Text(day.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 11))
+                                        Text(day.formatted(.dateTime.day())).font(.system(size: 18, weight: .medium))
+                                    }.frame(maxWidth: .infinity).frame(height: 64)
+                                        .foregroundStyle(active ? TaskListModel.shared.accent.color : Palette.secondary)
+                                        .background(active ? TaskListModel.shared.accent.color.opacity(0.10) : Palette.card.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                                        .contentShape(Rectangle())
+                                }.buttonStyle(.plain).accessibilityLabel(day.formatted(date: .complete, time: .omitted))
+                                    .accessibilityAddTraits(active ? .isSelected : [])
                             }
-                    }.foregroundStyle(Palette.secondary)
-                    HStack(spacing: 7) {
-                        ForEach(model.days, id: \.self) { day in
-                            let active = Calendar.current.isDate(day, inSameDayAs: model.selectedDay)
-                            Button { model.selectDay(day) } label: {
-                                VStack(spacing: 8) {
-                                    Text(day.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 11))
-                                    Text(day.formatted(.dateTime.day())).font(.system(size: 18, weight: .medium))
-                                }.frame(maxWidth: .infinity).frame(height: 64)
-                                    .foregroundStyle(active ? TaskListModel.shared.accent.color : Palette.secondary)
-                                    .background(active ? TaskListModel.shared.accent.color.opacity(0.10) : Palette.card.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
-                                    .contentShape(Rectangle())
-                            }.buttonStyle(.plain).accessibilityLabel(day.formatted(date: .complete, time: .omitted))
-                                .accessibilityAddTraits(active ? .isSelected : [])
                         }
-                    }
-                    Text(model.selectedDay.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
-                    BeaconScrollView {
-                        LazyVStack(spacing: 10) {
-                            if events.isEmpty {
-                                Text(model.feed.isRefreshing ? "Loading this day…" : model.feed.calendars.isEmpty ? "No calendars are available. Add an account in Apple Calendar." : "No events to show for this day.")
-                                    .font(.system(size: 13)).foregroundStyle(Palette.secondary).padding(.vertical, 32)
-                            }
-                            ForEach(events) { event in
-                                VStack(spacing: 0) {
-                                    CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
-                                    if selectedID == event.id {
-                                        CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) {
-                                            selectedID = nil; followUp(event)
-                                        }.padding(.top, 8)
+                        Text(model.selectedDay.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
+                        BeaconScrollView {
+                            LazyVStack(spacing: 10) {
+                                if events.isEmpty {
+                                    Text(model.feed.isRefreshing ? "Loading this day…" : model.feed.calendars.isEmpty ? "No calendars are available. Add an account in Apple Calendar." : "No events to show for this day.")
+                                        .font(.system(size: 13)).foregroundStyle(Palette.secondary).padding(.vertical, 32)
+                                }
+                                ForEach(events) { event in
+                                    VStack(spacing: 0) {
+                                        CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
+                                        if selectedID == event.id {
+                                            CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) {
+                                                selectedID = nil; followUp(event)
+                                            }.padding(.top, 8)
+                                        }
                                     }
                                 }
-                            }
-                        }.frame(maxWidth: .infinity)
+                            }.frame(maxWidth: .infinity)
+                        }
                     }
-                }
+                }.modifier(BeaconSectionMotion(value: model.showingUpcoming))
             } else { CalendarConnection(model: model); Spacer() }
         }.padding(.horizontal, 32).padding(.bottom, 22)
             .onChange(of: model.selectedDay) { _, _ in selectedID = nil }

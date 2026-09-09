@@ -78,3 +78,9 @@ Replaced the editor/Settings menu pickers with a shared themed choice popover an
 - A fast Up → Escape sequence initially dismissed Settings too. Guarding parent shortcuts through the native closing transition fixed that reproduced sequence; Settings remained open and its value unchanged. Parent shortcuts become available again after the picker closes.
 
 All test drafts were discarded, preview preferences restored, and the preview closed. The 128-unit-test suite passed; preview and normal app builds passed. This follow-up verified editor bindings and UI interactions, not live EventKit writes or notification delivery; the earlier integration results are recorded separately above.
+
+## Section motion
+
+Main destinations, Settings sections, and Calendar Day / Next 7 days now share a 16-point slide with a 240 ms ease-out and fade. The sidebar and footer remain stationary. The modifier observes only the selected section and preserves view identity, so data refreshes do not replay the entrance and quick-entry text is retained. Reduce Motion suppresses both displacement and fading through SwiftUI's accessibility environment.
+
+Preview navigation checked all six destinations, all five Settings sections, both Calendar tabs, retained quick-entry text, settled alignment, and dismissal. Preview closed without saving its draft. Normal and preview builds passed. The OS Reduce Motion preference was not changed during the walkthrough; its branch was verified in source. Implementation uses SwiftUI's [triggered phase animator](https://developer.apple.com/documentation/swiftui/view/phaseanimator(_:trigger:content:animation:)), with no new dependency.

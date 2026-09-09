@@ -46,6 +46,7 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 HStack {
                     Text(section.rawValue).font(.system(size: 19, weight: .semibold))
+                        .modifier(BeaconSectionMotion(value: section))
                     Spacer()
                     Button(action: dismiss) {
                         Image(systemName: "xmark").font(.system(size: 12, weight: .medium))
@@ -78,6 +79,7 @@ struct SettingsView: View {
                     }.padding(.horizontal, 24).padding(.bottom, 24)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }.scrollContentBackground(.hidden).id(section)
+                    .modifier(BeaconSectionMotion(value: section))
             }.frame(maxWidth: .infinity).background(Palette.washTop)
         }
         .foregroundStyle(Palette.ink)

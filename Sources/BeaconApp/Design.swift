@@ -383,3 +383,22 @@ struct BeaconNotesEditor: View {
             .accessibilityLabel("Notes")
     }
 }
+
+
+/// A short entrance when navigation changes, without replacing the view's
+/// identity or animating subsequent data refreshes and edits.
+struct BeaconSectionMotion<Value: Equatable>: ViewModifier {
+    let value: Value
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content.phaseAnimator([false, true], trigger: value) { view, entering in
+            view
+                .offset(x: !reduceMotion && entering ? 16 : 0)
+                .opacity(!reduceMotion && entering ? 0 : 1)
+        } animation: { entering in
+            reduceMotion || entering ? nil : .easeOut(duration: 0.24)
+        }
+        .clipped()
+    }
+}
