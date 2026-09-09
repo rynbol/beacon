@@ -491,6 +491,8 @@ struct TaskRow: View {
                             .multilineTextAlignment(.leading)
 
                         HStack(spacing: 5) {
+                            Text(Sections.relativeText(for: task, now: .now, calendar: .current))
+                                .monospacedDigit()
                             if task.urgency != .none {
                                 Image(systemName: "flag")
                                     .font(.system(size: 11, weight: .medium))
@@ -498,8 +500,6 @@ struct TaskRow: View {
                                     .help("\(task.urgency.title) urgency")
                                     .accessibilityLabel("\(task.urgency.title) urgency")
                             }
-                            Text(Sections.relativeText(for: task, now: .now, calendar: .current))
-                                .monospacedDigit()
                             if task.isRecurring {
                                 Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
                                     .font(.system(size: 9))
