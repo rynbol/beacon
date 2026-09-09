@@ -24,8 +24,9 @@ struct SettingsView: View {
     private var settingsCard: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Settings").font(.system(size: 16, weight: .semibold))
-                    .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 18)
+                Text("Settings").font(.system(size: 19, weight: .semibold))
+                    .frame(height: 28)
+                    .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 16)
                 ForEach(Section.allCases, id: \.self) { item in
                     Button { section = item } label: {
                         Text(item.rawValue).font(.system(size: 13, weight: section == item ? .medium : .regular))

@@ -45,3 +45,22 @@ Preview preferences used for testing were restored and the preview closed. New U
 ## Limits
 
 This is an integration run plus a manual UI walkthrough, not a claim that every system path has been tested. Audible notification delivery, Siri speech recognition, Dictation audio, Focus/sleep/wake, remote Google/iCloud propagation, and iPhone behavior were not exercised in this audit. No notification permission was changed. Unit tests and request construction cannot establish delivery. Native menu automation was unreliable for selecting the new Later items; their available options and the shared date calculations were inspected.
+
+## Alignment follow-up
+
+The follow-up on macOS 26.5.1 reproduced a roughly 17-point right-edge shift when a compact reminder list began to overflow. AppKit's overlay scroller setting alone did not prevent SwiftUI from reserving a gutter. The shared scroll wrapper now hides SwiftUI indicators and fills the available content width; native scrolling remains intact. The header, capture field, group rules, and reminder list retain a common right edge at the top and bottom of the list.
+
+Other fixes give shared cards consistent full width, align the Settings and section headings, distribute the four theme tiles evenly with backgrounds filling their height, center the editor title independently of the unequal Close/Save controls, and use a common icon column and text inset for Repeat, Urgency, List, and their separators. The Later menu is vertically centered with the date buttons.
+
+Rechecked in the isolated preview at a compact native quarter-tile window (approximately 900 × 614) and a wide native Fill window:
+
+- Reminder list scrolling and Today layout; stable content edges with and without overflow.
+- All five Settings sections; full-width Help cards and aligned notification/snooze controls.
+- A long Calendar include label wrapping across two lines, with Accounts & sync expanded; the temporary filter was removed afterward.
+- New reminder with a multiline title and expanded weekly repeat controls; scrolled through the bottom of the form with the header remaining centered and visible. Draft dismissed without saving.
+- Calendar Day, expanded event details, scrolling to the follow-up action, and Next 7 days; content stays aligned as details introduce overflow.
+- Appearance panel centered in the wide window, with even theme tiles. Preview closed after inspection.
+
+After these fixes, all 128 unit tests and all 27 app integration checks passed again. The normal app and sample preview built successfully, and the integration harness confirmed its temporary reminders were removed.
+
+These checks cover the reproduced alignment issues, not every window size or system display configuration. The layout changes do not alter reminder or Calendar data rules.

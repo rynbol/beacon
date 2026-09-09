@@ -10,7 +10,7 @@ Research used X in Chrome and primary project documentation. X results are examp
 
 SwiftUI Introspect 26.0.2, exact-pinned in Package.swift and Beacon.xcodeproj. It has no transitive package dependencies or build plugins. Its MIT notice is in Resources/Licenses and copied into packaged apps by the build script.
 
-BeaconScrollView configures the underlying NSScrollView with native overlay scrollbars and small controls on macOS 26. AppKit owns interaction and visibility; the old custom 900 ms timer and visibility toggling are removed. Overlay bars do not reserve content width. Introspection explicitly opts into macOS 26; future major versions require checking library support. If introspection cannot find a view, the ordinary SwiftUI ScrollView remains usable.
+BeaconScrollView configures the underlying NSScrollView with native overlay scrollbars and small controls on macOS 26. The old custom 900 ms timer and visibility toggling are removed. A follow-up compact-window check found that SwiftUI still reserved a legacy scrollbar gutter despite AppKit's overlay style. The wrapper now also hides SwiftUI scroll indicators and gives content the full available width, preventing a roughly 17-point shift when content overflows. Native scrolling remains available; AppKit can still expose an overlay indicator during interaction. Introspection explicitly opts into macOS 26; future major versions require checking library support. If introspection cannot find a view, the ordinary SwiftUI ScrollView remains usable.
 
 The sample-data preview verified an uncluttered idle list, thin overlay during scrolling, and stable content alignment. No live reminder/calendar writes were used. Preview and X research tab were closed afterward.
 

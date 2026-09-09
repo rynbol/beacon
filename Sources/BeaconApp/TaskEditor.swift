@@ -150,32 +150,23 @@ struct TaskEditor: View {
     // MARK: - Pieces
 
     private var header: some View {
-        HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.ink)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Palette.card.opacity(0.8)))
+        Text(isNew ? "New reminder" : "Edit reminder")
+            .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.ink)
+            .frame(maxWidth: .infinity).frame(height: 32)
+            .overlay(alignment: .leading) {
+                Button(action: dismiss) {
+                    Image(systemName: "xmark").font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.ink).frame(width: 32, height: 32)
+                        .background(Circle().fill(Palette.card.opacity(0.8)))
+                }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
+                    .accessibilityLabel("Close reminder").disabled(saving)
             }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.cancelAction)
-            .accessibilityLabel("Close reminder")
-            .disabled(saving)
-
-            Spacer()
-            Text(isNew ? "New reminder" : "Edit reminder")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Palette.ink)
-            Spacer()
-
-            Button(saving ? "Saving…" : "Save", action: save)
-                .buttonStyle(SwiftcnButtonStyle(variant: .primary, accent: accent))
-            .disabled(!canSave)
-            .keyboardShortcut(.defaultAction)
-        }
-        .padding(.horizontal, Metrics.gutter)
-        .padding(.vertical, 12)
+            .overlay(alignment: .trailing) {
+                Button(saving ? "Saving…" : "Save", action: save)
+                    .buttonStyle(SwiftcnButtonStyle(variant: .primary, accent: accent))
+                    .disabled(!canSave).keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, Metrics.gutter).padding(.vertical, 12)
     }
 
     private var titleField: some View {
@@ -259,7 +250,7 @@ struct TaskEditor: View {
 
     private var chipRow: some View {
         let prominent: [DueChip] = recurrence == nil ? [.today, .tomorrow, .someday] : [.today]
-        return FlowRow(spacing: 8) {
+        return HStack(spacing: 8) {
             ForEach(prominent) { option in
                 Chip(label: option.label, isSelected: chip == option, accent: accent) { choose(option) }
             }
@@ -274,7 +265,7 @@ struct TaskEditor: View {
             } label: {
                 Text(chip.map { prominent.contains($0) ? "Later" : $0.label } ?? "Later")
                     .font(.system(size: 12)).foregroundStyle(accent)
-            }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("More reminder times")
+            }.menuStyle(.borderlessButton).fixedSize().frame(height: 32).accessibilityLabel("More reminder times")
         }
     }
 
@@ -298,11 +289,11 @@ struct TaskEditor: View {
                     )
                     if due == nil { due = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: .now) }
                 }
-                InsetDivider(leading: 46)
+                InsetDivider(leading: Metrics.formTextInset)
             }
-            HStack(spacing: 10) {
+            HStack(spacing: Metrics.formSpacing) {
                 Image(systemName: urgency == .none ? "circle.slash" : "flag")
-                    .foregroundStyle(UrgencyColors.shared.color(for: urgency)).frame(width: 30)
+                    .foregroundStyle(UrgencyColors.shared.color(for: urgency)).frame(width: Metrics.formIcon)
                 Text("Urgency").font(.rowLabel)
                 Spacer()
                 Picker("Urgency", selection: $urgency) {
@@ -312,12 +303,12 @@ struct TaskEditor: View {
                 }.labelsHidden().pickerStyle(.menu).fixedSize().font(.rowLabel)
             }.padding(.horizontal, Metrics.gutter).frame(height: 46)
             if model.lists.count > 1 {
-                InsetDivider(leading: 46)
-                HStack {
+                InsetDivider(leading: Metrics.formTextInset)
+                HStack(spacing: Metrics.formSpacing) {
                     Image(systemName: "list.bullet")
                         .font(.system(size: 14))
                         .foregroundStyle(accent)
-                        .frame(width: 30)
+                        .frame(width: Metrics.formIcon)
                     Text("List").font(.rowLabel)
                     Spacer()
                     Picker("Reminder list", selection: $listID) {
@@ -337,11 +328,11 @@ struct TaskEditor: View {
 
     private func editorRow(icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 0) {
+            HStack(spacing: Metrics.formSpacing) {
                 Image(systemName: icon)
                     .font(.system(size: 14))
                     .foregroundStyle(accent)
-                    .frame(width: 30)
+                    .frame(width: Metrics.formIcon)
                 Text(label).font(.rowLabel).foregroundStyle(accent)
                 Spacer()
             }

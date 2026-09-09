@@ -81,6 +81,9 @@ extension Color {
 
 enum Metrics {
     static let gutter: CGFloat = 16
+    static let formIcon: CGFloat = 20
+    static let formSpacing: CGFloat = 10
+    static let formTextInset: CGFloat = gutter + formIcon + formSpacing
     static let rowHeight: CGFloat = 72
     static let circle: CGFloat = 21
     static let radius: CGFloat = 10
@@ -309,7 +312,7 @@ struct ThemePicker: View {
                                     Capsule().fill(Color(hex: theme.palette.text)).frame(width: 28, height: 3)
                                     RoundedRectangle(cornerRadius: 3).fill(Color(hex: theme.palette.surface)).frame(height: 13)
                                     RoundedRectangle(cornerRadius: 3).fill(Color(hex: theme.palette.surface)).frame(height: 13)
-                                }.padding(8).frame(maxWidth: .infinity).background(Color(hex: theme.palette.canvas))
+                                }.padding(8).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(hex: theme.palette.canvas))
                             }.frame(height: 64).clipShape(RoundedRectangle(cornerRadius: 7))
                                 .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(appearance.theme == theme ? Palette.ink : Palette.hairline, lineWidth: appearance.theme == theme ? 2 : 1))
                             HStack {
@@ -317,8 +320,8 @@ struct ThemePicker: View {
                                 Spacer(minLength: 0)
                                 if appearance.theme == theme { Image(systemName: "checkmark").font(.system(size: 9, weight: .semibold)) }
                             }.font(.system(size: 11)).foregroundStyle(Palette.ink)
-                        }.contentShape(Rectangle())
-                    }.buttonStyle(.plain).accessibilityLabel("\(theme.title) theme")
+                        }.frame(maxWidth: .infinity).contentShape(Rectangle())
+                    }.buttonStyle(.plain).frame(maxWidth: .infinity).accessibilityLabel("\(theme.title) theme")
                         .accessibilityAddTraits(appearance.theme == theme ? .isSelected : [])
                 }
             }
@@ -326,12 +329,15 @@ struct ThemePicker: View {
     }
 }
 
-/// Let AppKit own scrollbar fading and dragging without changing content width.
+/// Keep a stable content width when scrolling begins, with native scroll behavior.
 struct BeaconScrollView<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        ScrollView { content() }
+        ScrollView { content().frame(maxWidth: .infinity, alignment: .leading) }
+            // SwiftUI otherwise reserves a legacy scrollbar gutter when content
+            // begins to overflow, even after AppKit is set to overlay style.
+            .scrollIndicators(.hidden)
             .introspect(.scrollView, on: .macOS(.v26)) { scrollView in
                 scrollView.scrollerStyle = .overlay
                 scrollView.autohidesScrollers = true
