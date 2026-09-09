@@ -283,8 +283,6 @@ struct UpcomingCalendarAgenda: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("\(events.count) \(events.count == 1 ? "event" : "events") in the next 7 days")
-                    .font(.system(size: 12)).foregroundStyle(Palette.secondary)
                 Spacer(minLength: 8)
                 Button(action: openFilters) {
                     HStack(spacing: 6) {
