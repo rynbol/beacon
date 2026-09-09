@@ -162,6 +162,47 @@ final class UpcomingEventFilterTests: XCTestCase {
         XCTAssertEqual(filter.events([], now: now).count, 0)
     }
 
+    func testManualInclusionOverridesBothKeywordListsAndRemovalRestoresRules() {
+        let lunch = event("Lunch cancelled")
+        let filter = UpcomingEventFilter(include: ["Interview"], exclude: ["cancelled"], manuallyIncludedIDs: [lunch.id])
+        XCTAssertEqual(filter.events([lunch], now: now).map(\.id), [lunch.id])
+        XCTAssertTrue(UpcomingEventFilter(include: filter.include, exclude: filter.exclude)
+            .events([lunch], now: now).isEmpty)
+    }
+
+    func testManualInclusionNeverOverridesCalendarVisibilityOrSevenDayWindow() {
+        let lunch = event("Lunch")
+        let past = event("Past", start: now.addingTimeInterval(-3600), end: now)
+        let limit = UpcomingEventFilter.range(now: now).end
+        let later = event("Later", start: limit, end: limit.addingTimeInterval(3600))
+        let filter = UpcomingEventFilter(include: ["Interview"], manuallyIncludedIDs: [lunch.id, past.id, later.id])
+        XCTAssertEqual(filter.events([past, lunch, later], now: now).map(\.id), [lunch.id])
+        XCTAssertTrue(filter.events([lunch], now: now, hiddenCalendarIDs: ["work"]).isEmpty)
+    }
+
+    func testManualInclusionIsScopedToOccurrenceAndCalendar() throws {
+        let first = event("Lunch")
+        let next = CalendarEventSnapshot(identifier: first.identifier, calendarID: first.calendarID,
+            title: first.title, start: now.addingTimeInterval(86400), end: now.addingTimeInterval(90000))
+        let otherCalendar = CalendarEventSnapshot(identifier: first.identifier, calendarID: "personal",
+            title: first.title, start: first.start, end: first.end)
+        // The same property-list representation is stored in UserDefaults.
+        let data = try PropertyListEncoder().encode([first.id])
+        let restored = Set(try PropertyListDecoder().decode([String].self, from: data))
+        let filter = UpcomingEventFilter(include: ["Interview"], manuallyIncludedIDs: restored)
+        XCTAssertEqual(filter.events([next, otherCalendar, first], now: now).map(\.id), [first.id])
+    }
+
+    func testManualAndKeywordMatchOnlyAppearOnceAndReflectUpdatedEventDetails() {
+        let item = event("Interview")
+        let filter = UpcomingEventFilter(include: ["Interview"], manuallyIncludedIDs: [item.id])
+        XCTAssertEqual(filter.events([item], now: now).count, 1)
+        let renamed = CalendarEventSnapshot(identifier: item.identifier, calendarID: item.calendarID,
+            title: "New title", start: item.start, end: item.end)
+        XCTAssertEqual(filter.events([renamed], now: now).map(\.title), ["New title"])
+        XCTAssertTrue(filter.events([], now: now).isEmpty, "Deleted events must not be recreated from saved selections")
+    }
+
     @MainActor
     func testFeedRefreshReappliesKeywordsWithoutRemovingDayViewData() async {
         let interview = event("INTERVIEW")

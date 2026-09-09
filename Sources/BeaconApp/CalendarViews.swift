@@ -286,6 +286,7 @@ struct UpcomingCalendarAgenda: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Spacer(minLength: 8)
+                UpcomingEventAddButton(model: model)
                 Button(action: openFilters) {
                     HStack(spacing: 6) {
                         Image(systemName: "line.3.horizontal.decrease")
@@ -327,10 +328,30 @@ struct UpcomingKeywordSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Upcoming filters").font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.ink)
-            Text("Match event titles, regardless of case. Exclusions take priority.")
+            Text("Match event titles, regardless of case. Exclusions take priority unless you manually add an event.")
                 .font(.taskMeta).foregroundStyle(Palette.secondary)
             keywordList("Include", values: model.includeKeywords, draft: $includeDraft, excluding: false)
             keywordList("Exclude", values: model.excludeKeywords, draft: $excludeDraft, excluding: true)
+            Divider().padding(.vertical, 4)
+            HStack {
+                Text("Manually added").font(.system(size: 12, weight: .semibold))
+                Spacer()
+                UpcomingEventAddButton(model: model)
+            }
+            Text("Include individual events in the next 7 days, even when keywords hide them. Calendar toggles still apply.")
+                .font(.taskMeta).foregroundStyle(Palette.secondary)
+            ForEach(model.manuallyIncludedEvents) { event in
+                HStack(spacing: 12) {
+                    UpcomingEventSelectionLabel(event: event, model: model)
+                    Spacer(minLength: 8)
+                    Button { model.setManuallyIncluded(event, included: false) } label: {
+                        Image(systemName: "xmark").frame(width: 28, height: 28)
+                    }.buttonStyle(.plain).accessibilityLabel("Remove manual inclusion for \(event.title)")
+                }
+            }
+            if model.manuallyIncludedEvents.isEmpty {
+                Text("No manually added events this week.").font(.taskMeta).foregroundStyle(Palette.secondary)
+            }
         }
     }
     private func keywordList(_ label: String, values: [String], draft: Binding<String>, excluding: Bool) -> some View {
@@ -369,5 +390,98 @@ struct UpcomingKeywordSettings: View {
         let existing = excluding ? model.excludeKeywords : model.includeKeywords
         model.setKeywords(existing + [draft.wrappedValue], excluding: excluding)
         draft.wrappedValue = ""
+    }
+}
+
+/// Shared picker for the calendar toolbar and Calendar settings.
+private struct UpcomingEventAddButton: View {
+    var model: CalendarModel
+    @State private var showing = false
+    @State private var search = ""
+    @State private var presentationID = UUID()
+    @State private var releaseTask: Task<Void, Never>?
+    @Environment(\.beaconChoicePresentation) private var parentPresentation
+    private var events: [CalendarEventSnapshot] {
+        model.availableUpcomingEvents.filter {
+            search.isEmpty || $0.title.localizedCaseInsensitiveContains(search)
+        }
+    }
+    var body: some View {
+        Button { search = ""; parentPresentation.wrappedValue.insert(presentationID); showing = true } label: {
+            Label("Add events", systemImage: "plus")
+        }.buttonStyle(SwiftcnButtonStyle())
+            .onChange(of: showing) { _, value in
+                releaseTask?.cancel()
+                if value { parentPresentation.wrappedValue.insert(presentationID) }
+                else {
+                    releaseTask = Task { @MainActor in
+                        do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+                        guard !showing else { return }
+                        parentPresentation.wrappedValue.remove(presentationID)
+                    }
+                }
+            }
+            .onDisappear {
+                releaseTask?.cancel()
+                parentPresentation.wrappedValue.remove(presentationID)
+            }
+            .popover(isPresented: $showing, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text("Add events").font(.system(size: 15, weight: .semibold))
+                        Spacer()
+                        Button { showing = false } label: {
+                            Image(systemName: "xmark").frame(width: 28, height: 28)
+                        }.buttonStyle(.plain).keyboardShortcut(.cancelAction).accessibilityLabel("Close event picker")
+                    }
+                    Text("Choose extra events for the next 7 days.")
+                        .font(.taskMeta).foregroundStyle(Palette.secondary)
+                    TextField("Search events", text: $search).textFieldStyle(.plain)
+                        .padding(10).modifier(SwiftcnInputSurface())
+                    BeaconScrollView {
+                        VStack(alignment: .leading, spacing: 6) {
+                            if let error = model.feed.error {
+                                Text(error).font(.taskMeta).foregroundStyle(Palette.secondary)
+                            }
+                            if events.isEmpty {
+                                Text(model.feed.isRefreshing ? "Loading events…" : search.isEmpty ? "No extra events to add. Check your calendar toggles if something is missing." : "No matching events.")
+                                    .font(.taskMeta).foregroundStyle(Palette.secondary).padding(.vertical, 12)
+                            }
+                            ForEach(events) { event in
+                                Button { model.setManuallyIncluded(event, included: true) } label: {
+                                    HStack(spacing: 12) {
+                                        UpcomingEventSelectionLabel(event: event, model: model)
+                                        Spacer(minLength: 8)
+                                        Image(systemName: "plus").font(.system(size: 12))
+                                    }.padding(8).contentShape(Rectangle())
+                                }.buttonStyle(SwiftcnButtonStyle(variant: .quiet))
+                                    .accessibilityLabel("Include \(event.title), \(event.start.formatted(date: .abbreviated, time: .shortened))")
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                    }.frame(height: 260)
+                }.padding(18).frame(width: 380)
+                    .foregroundStyle(Palette.ink).background(Palette.wash)
+                    .task { await model.refresh() }
+            }
+    }
+}
+
+private struct UpcomingEventSelectionLabel: View {
+    let event: CalendarEventSnapshot
+    var model: CalendarModel
+    private var detail: String {
+        let date = event.start.formatted(.dateTime.month(.abbreviated).day())
+        let time = event.isAllDay ? "All day" : event.start.formatted(date: .omitted, time: .shortened)
+        let calendar = model.source(for: event.calendarID)?.title ?? "Calendar"
+        return "\(date) · \(time) · \(calendar)"
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(event.title).font(.taskMeta).foregroundStyle(Palette.ink)
+                .lineLimit(2).multilineTextAlignment(.leading)
+            Text(detail)
+                .font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                .lineLimit(2).multilineTextAlignment(.leading)
+        }
     }
 }

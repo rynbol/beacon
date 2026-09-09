@@ -3,9 +3,11 @@ import Foundation
 public struct UpcomingEventFilter: Sendable {
     public var include: [String]
     public var exclude: [String]
-    public init(include: [String] = [], exclude: [String] = []) {
+    public var manuallyIncludedIDs: Set<String>
+    public init(include: [String] = [], exclude: [String] = [], manuallyIncludedIDs: Set<String> = []) {
         self.include = Self.labels(include)
         self.exclude = Self.labels(exclude)
+        self.manuallyIncludedIDs = manuallyIncludedIDs
     }
     private static func folded(_ text: String) -> String {
         text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
@@ -16,6 +18,7 @@ public struct UpcomingEventFilter: Sendable {
             .filter { !$0.isEmpty && seen.insert(folded($0)).inserted }
     }
     public func matches(_ event: CalendarEventSnapshot) -> Bool {
+        if manuallyIncludedIDs.contains(event.id) { return true }
         let title = Self.folded(event.title)
         return (include.isEmpty || include.contains { title.contains(Self.folded($0)) })
             && !exclude.contains { title.contains(Self.folded($0)) }
