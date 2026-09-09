@@ -14,13 +14,13 @@ The daily overview remains “A moment for your day” / “See what needs your 
 
 ## Icon
 
-The existing cream lighthouse on teal is bundled as Beacon.icns and referenced by Info.plist. The build script registers the packaged app with LaunchServices after signing. On the development machine, older duplicate Beacon registrations were removed and the obsolete running copy was closed. No reminders or notification database were deleted.
+The existing cream lighthouse on teal is compiled from Resources/Assets.xcassets/AppIcon.appiconset. Xcode generates Assets.car, AppIcon.icns, CFBundleIconName and CFBundleIconFile; both Debug and Release select AppIcon. The build script checks that these outputs exist. Regenerate the PNGs with Scripts/generate-app-icon.swift Resources/Assets.xcassets/AppIcon.appiconset. The build script registers the packaged app with LaunchServices after signing. On the development machine, older duplicate Beacon registrations were removed and the obsolete running copy was closed. No reminders or notification database were deleted.
 
 ## Verification
 
 133 unit tests and 27 app integration checks passed. Coverage includes every urgency suffix, Unicode titles, empty task subtitle/body, unchanged scheduling across urgency levels, native category identifiers and foreground options, and persisted snooze dates. Integration test reminders were cleaned up. The normal signed Mac build passed.
 
-The chooser was visually checked with sample data, including keyboard blocking, failed-save feedback, and Escape dismissal. A disposable native notification was confirmed delivered and removed using its unique identifier. This does not verify a live notification action click. The icon resource was inspected, but the final Notification Center icon appearance could not be verified through UI automation.
+The chooser was visually checked with sample data, including keyboard blocking, failed-save feedback, and Escape dismissal. A disposable native notification was confirmed delivered and removed using its unique identifier. This does not verify a live notification action click. The compiled catalog was inspected with assetutil and contains the AppIcon renditions. A fresh delivery succeeded after the catalog migration, but the final Notification Center icon appearance could not be verified through UI automation.
 
 For a delivery-only preview, launch the built app with `--notification-preview --report <path>`. This requires existing notification permission, skips normal reminder access/scheduling, and removes only its own temporary notification. It has no real task action target.
 
