@@ -14,69 +14,78 @@ struct CalendarWorkspace: View {
         VStack(alignment: .leading, spacing: 18) {
             CalendarConnection(model: model)
             if model.feed.access == .granted {
-                HStack(spacing: 8) {
-                    navigationButton("chevron.left", label: "Previous week") { moveWeek(-1) }
-                    Text(model.selectedDay.formatted(.dateTime.month(.wide).year()))
-                        .font(.system(size: 16, weight: .medium)).lineLimit(1)
-                    navigationButton("chevron.right", label: "Next week") { moveWeek(1) }
-                    Spacer(minLength: 8)
-                    Button { model.selectDay(.now) } label: {
-                        Text("Today").padding(.horizontal, 12).frame(height: 36)
-                            .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
-                    }.buttonStyle(.plain)
-                    Button { showingDatePicker.toggle() } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "calendar")
-                            Text(model.selectedDay.formatted(.dateTime.month(.abbreviated).day().year())).lineLimit(1)
-                        }.font(.system(size: 12)).padding(.horizontal, 12).frame(height: 36)
-                            .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
-                    }.buttonStyle(.plain).accessibilityLabel("Choose date")
-                        .popover(isPresented: $showingDatePicker) {
-                            VStack(alignment: .trailing, spacing: 8) {
-                                Button { showingDatePicker = false } label: {
-                                    Image(systemName: "xmark").frame(width: 28, height: 28).contentShape(Rectangle())
-                                }.buttonStyle(.plain).accessibilityLabel("Close date picker")
-                                DatePicker("Choose date", selection: Binding(
-                                    get: { model.selectedDay },
-                                    set: { model.selectDay($0); showingDatePicker = false }
-                                ), displayedComponents: .date).datePickerStyle(.graphical).labelsHidden()
-                            }.padding(14).frame(width: 290)
+                Picker("Calendar view", selection: $model.showingUpcoming) {
+                    Text("Day").tag(false)
+                    Text("Upcoming · 7 days").tag(true)
+                }.pickerStyle(.segmented).frame(width: 260)
+                    .onChange(of: model.showingUpcoming) { _, _ in model.refreshAfterNavigation() }
+                if model.showingUpcoming {
+                    UpcomingCalendarAgenda(model: model, search: search, followUp: followUp)
+                } else {
+                    HStack(spacing: 8) {
+                        navigationButton("chevron.left", label: "Previous week") { moveWeek(-1) }
+                        Text(model.selectedDay.formatted(.dateTime.month(.wide).year()))
+                            .font(.system(size: 16, weight: .medium)).lineLimit(1)
+                        navigationButton("chevron.right", label: "Next week") { moveWeek(1) }
+                        Spacer(minLength: 8)
+                        Button { model.selectDay(.now) } label: {
+                            Text("Today").padding(.horizontal, 12).frame(height: 36)
+                                .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
+                        }.buttonStyle(.plain)
+                        Button { showingDatePicker.toggle() } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "calendar")
+                                Text(model.selectedDay.formatted(.dateTime.month(.abbreviated).day().year())).lineLimit(1)
+                            }.font(.system(size: 12)).padding(.horizontal, 12).frame(height: 36)
+                                .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
+                        }.buttonStyle(.plain).accessibilityLabel("Choose date")
+                            .popover(isPresented: $showingDatePicker) {
+                                VStack(alignment: .trailing, spacing: 8) {
+                                    Button { showingDatePicker = false } label: {
+                                        Image(systemName: "xmark").frame(width: 28, height: 28).contentShape(Rectangle())
+                                    }.buttonStyle(.plain).accessibilityLabel("Close date picker")
+                                    DatePicker("Choose date", selection: Binding(
+                                        get: { model.selectedDay },
+                                        set: { model.selectDay($0); showingDatePicker = false }
+                                    ), displayedComponents: .date).datePickerStyle(.graphical).labelsHidden()
+                                }.padding(14).frame(width: 290)
+                            }
+                    }.foregroundStyle(Palette.secondary)
+                    HStack(spacing: 7) {
+                        ForEach(model.days, id: \.self) { day in
+                            let active = Calendar.current.isDate(day, inSameDayAs: model.selectedDay)
+                            Button { model.selectDay(day) } label: {
+                                VStack(spacing: 8) {
+                                    Text(day.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 11))
+                                    Text(day.formatted(.dateTime.day())).font(.system(size: 18, weight: .medium))
+                                }.frame(maxWidth: .infinity).frame(height: 64)
+                                    .foregroundStyle(active ? Accent.ocean.color : Palette.secondary)
+                                    .background(active ? Accent.ocean.color.opacity(0.10) : Palette.card.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                                    .contentShape(Rectangle())
+                            }.buttonStyle(.plain).accessibilityLabel(day.formatted(date: .complete, time: .omitted))
+                                .accessibilityAddTraits(active ? .isSelected : [])
                         }
-                }.foregroundStyle(Palette.secondary)
-                HStack(spacing: 7) {
-                    ForEach(model.days, id: \.self) { day in
-                        let active = Calendar.current.isDate(day, inSameDayAs: model.selectedDay)
-                        Button { model.selectDay(day) } label: {
-                            VStack(spacing: 8) {
-                                Text(day.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 11))
-                                Text(day.formatted(.dateTime.day())).font(.system(size: 18, weight: .medium))
-                            }.frame(maxWidth: .infinity).frame(height: 64)
-                                .foregroundStyle(active ? Accent.ocean.color : Palette.secondary)
-                                .background(active ? Accent.ocean.color.opacity(0.10) : Palette.card.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
-                                .contentShape(Rectangle())
-                        }.buttonStyle(.plain).accessibilityLabel(day.formatted(date: .complete, time: .omitted))
-                            .accessibilityAddTraits(active ? .isSelected : [])
                     }
-                }
-                Text(model.selectedDay.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        if events.isEmpty {
-                            Text(model.feed.isRefreshing ? "Loading this day…" : model.feed.calendars.isEmpty ? "No calendars are available. Add an account in Apple Calendar." : "No events to show for this day.")
-                                .font(.system(size: 13)).foregroundStyle(Palette.secondary).padding(.vertical, 32)
-                        }
-                        ForEach(events) { event in
-                            VStack(spacing: 0) {
-                                CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
-                                if selectedID == event.id {
-                                    CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) {
-                                        selectedID = nil; followUp(event)
-                                    }.padding(.top, 8)
+                    Text(model.selectedDay.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
+                    ScrollView {
+                        LazyVStack(spacing: 10) {
+                            if events.isEmpty {
+                                Text(model.feed.isRefreshing ? "Loading this day…" : model.feed.calendars.isEmpty ? "No calendars are available. Add an account in Apple Calendar." : "No events to show for this day.")
+                                    .font(.system(size: 13)).foregroundStyle(Palette.secondary).padding(.vertical, 32)
+                            }
+                            ForEach(events) { event in
+                                VStack(spacing: 0) {
+                                    CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
+                                    if selectedID == event.id {
+                                        CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) {
+                                            selectedID = nil; followUp(event)
+                                        }.padding(.top, 8)
+                                    }
                                 }
                             }
-                        }
-                    }.frame(maxWidth: .infinity)
+                        }.frame(maxWidth: .infinity)
+                    }
                 }
             } else { Spacer() }
         }.padding(.horizontal, 32).padding(.bottom, 22)
@@ -245,5 +254,93 @@ private struct CalendarEventDetails: View {
             Button("Create a follow-up reminder", action: followUp).buttonStyle(.link)
         }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
             .background(Palette.band.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+
+struct UpcomingCalendarAgenda: View {
+    var model: CalendarModel
+    var search: String
+    let followUp: (CalendarEventSnapshot) -> Void
+    @State private var selectedID: String?
+    private var events: [CalendarEventSnapshot] {
+        model.upcomingEvents.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) }
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Upcoming").font(.system(size: 18, weight: .semibold))
+                Spacer()
+                Text("Next 7 days · \(events.count) \(events.count == 1 ? "event" : "events")").font(.taskMeta).foregroundStyle(Palette.secondary)
+            }
+            Text("Include: \(model.includeKeywords.isEmpty ? "All titles" : model.includeKeywords.joined(separator: ", ")) · Exclude: \(model.excludeKeywords.isEmpty ? "None" : model.excludeKeywords.joined(separator: ", "))")
+                .font(.taskMeta).foregroundStyle(Palette.secondary)
+            Text("Change keywords in Settings → Upcoming calendar events.")
+                .font(.system(size: 11)).foregroundStyle(Palette.secondary)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    if events.isEmpty {
+                        Text(model.feed.isRefreshing ? "Loading upcoming events…" : "No upcoming events match. Check your keywords and calendar toggles.")
+                            .font(.taskMeta).foregroundStyle(Palette.secondary).padding(.vertical, 28)
+                    }
+                    ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
+                        if index == 0 || !Calendar.current.isDate(event.start, inSameDayAs: events[index - 1].start) {
+                            Text(event.start.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary).padding(.top, 8)
+                        }
+                        CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
+                        if selectedID == event.id {
+                            CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) {
+                                selectedID = nil; followUp(event)
+                            }
+                        }
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+struct UpcomingKeywordSettings: View {
+    var model: CalendarModel
+    @State private var includeDraft = ""
+    @State private var excludeDraft = ""
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Upcoming calendar events").font(.fieldLabel).foregroundStyle(Palette.secondary)
+            Text("Filter event titles in Calendar → Upcoming. Match any include keyword; exclude keywords always win. Matching ignores case. Leave Include empty to show all titles.")
+                .font(.taskMeta).foregroundStyle(Palette.secondary)
+            keywordList("Include", values: model.includeKeywords, draft: $includeDraft, excluding: false)
+            keywordList("Exclude", values: model.excludeKeywords, draft: $excludeDraft, excluding: true)
+        }
+    }
+    private func keywordList(_ label: String, values: [String], draft: Binding<String>, excluding: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label).font(.system(size: 12, weight: .semibold))
+            HStack {
+                TextField("Add keyword", text: draft)
+                    .textFieldStyle(.roundedBorder).accessibilityLabel("\(label) keyword")
+                    .onSubmit { add(draft, excluding: excluding) }
+                Button("Add") { add(draft, excluding: excluding) }
+                    .disabled(draft.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityLabel("Add \(label.lowercased()) keyword")
+            }
+            FlowRow(spacing: 6) {
+                ForEach(values, id: \.self) { keyword in
+                    Button {
+                        model.setKeywords(values.filter { $0 != keyword }, excluding: excluding)
+                    } label: {
+                        HStack(spacing: 6) { Text(keyword); Image(systemName: "xmark").font(.system(size: 9)) }
+                            .font(.taskMeta).padding(.horizontal, 9).padding(.vertical, 7)
+                            .background(Palette.band, in: RoundedRectangle(cornerRadius: 6))
+                    }.buttonStyle(.plain).accessibilityLabel("Remove \(label.lowercased()) keyword \(keyword)")
+                }
+            }
+        }
+    }
+    private func add(_ draft: Binding<String>, excluding: Bool) {
+        let existing = excluding ? model.excludeKeywords : model.includeKeywords
+        model.setKeywords(existing + [draft.wrappedValue], excluding: excluding)
+        draft.wrappedValue = ""
     }
 }

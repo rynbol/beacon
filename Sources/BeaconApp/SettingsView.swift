@@ -27,6 +27,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         accentSection
                         calendarSection
+                        UpcomingKeywordSettings(model: .shared)
                         groupingSection
                         notificationSection
                         ladderSection

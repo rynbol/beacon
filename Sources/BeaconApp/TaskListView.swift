@@ -169,7 +169,12 @@ struct TaskListView: View {
             }
             if destination == .calendar || destination == .today {
                 let day = destination == .calendar ? calendarModel.selectedDay : Date.now
-                let calendars = calendarModel.feed.calendarsWithEvents(in: Calendar.current.dateInterval(of: .day, for: day)!)
+                let range = destination == .calendar && calendarModel.showingUpcoming
+                    ? UpcomingEventFilter.range(now: .now)
+                    : Calendar.current.dateInterval(of: .day, for: day)!
+                let calendars = destination == .calendar && calendarModel.showingUpcoming
+                    ? calendarModel.upcomingCalendars
+                    : calendarModel.feed.calendarsWithEvents(in: range)
                 if !calendars.isEmpty {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 10) {

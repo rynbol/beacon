@@ -13,12 +13,17 @@ final class CalendarModel {
     private var watcher: Task<Void, Never>?
     private var debounce: Task<Void, Never>?
     private var navigationRefresh: Task<Void, Never>?
+    var showingUpcoming = false
+    private(set) var includeKeywords: [String]
+    private(set) var excludeKeywords: [String]
     let isPreview: Bool
 
     init() {
         let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview"
         isPreview = preview
         defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
+        includeKeywords = UpcomingEventFilter.labels(defaults.stringArray(forKey: "upcomingIncludeKeywords") ?? [])
+        excludeKeywords = UpcomingEventFilter.labels(defaults.stringArray(forKey: "upcomingExcludeKeywords") ?? [])
         hiddenIDs = Set(defaults.stringArray(forKey: "hiddenEventCalendars") ?? [])
         colorOverrides = defaults.dictionary(forKey: "eventCalendarColors") as? [String: String] ?? [:]
         feed = CalendarFeed(reader: preview ? PreviewCalendarReader() : CalendarStore())
@@ -31,10 +36,26 @@ final class CalendarModel {
     }
     var ranges: [DateInterval] {
         let today = Calendar.current.dateInterval(of: .day, for: .now)!
-        return week.contains(today.start) ? [week] : [week, today]
+        return [week, today, UpcomingEventFilter.range(now: .now)]
     }
     var selectedEvents: [CalendarEventSnapshot] {
         feed.events(in: Calendar.current.dateInterval(of: .day, for: selectedDay)!, hiddenCalendarIDs: hiddenIDs)
+    }
+    var upcomingCalendars: [EventCalendarSnapshot] {
+        let matches = UpcomingEventFilter(include: includeKeywords, exclude: excludeKeywords)
+            .events(feed.events, now: .now)
+        let ids = Set(matches.map(\.calendarID))
+        return feed.calendars.filter { ids.contains($0.id) }
+    }
+    var upcomingEvents: [CalendarEventSnapshot] {
+        UpcomingEventFilter(include: includeKeywords, exclude: excludeKeywords)
+            .events(feed.events, now: .now, hiddenCalendarIDs: hiddenIDs)
+    }
+    func setKeywords(_ values: [String], excluding: Bool) {
+        let labels = UpcomingEventFilter.labels(values)
+        if excluding { excludeKeywords = labels } else { includeKeywords = labels }
+        defaults.set(labels, forKey: excluding ? "upcomingExcludeKeywords" : "upcomingIncludeKeywords")
+        refreshAfterNavigation()
     }
     var upcomingToday: [CalendarEventSnapshot] {
         feed.events(in: Calendar.current.dateInterval(of: .day, for: .now)!, hiddenCalendarIDs: hiddenIDs)
