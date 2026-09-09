@@ -126,26 +126,35 @@ struct TodayCalendarAgenda: View {
     var maxEvents = 3
     @State private var selectedID: String?
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Up next").font(.system(size: 12, weight: .semibold))
-                Spacer()
+        VStack(alignment: .leading, spacing: 10) {
+            if model.feed.access == .granted && model.upcomingToday.isEmpty && model.feed.error == nil {
                 Button(action: showCalendar) {
-                    Image(systemName: "arrow.up.right").frame(width: 32, height: 32).contentShape(Rectangle())
-                }.buttonStyle(.plain).help("See calendar").accessibilityLabel("See calendar")
-            }.foregroundStyle(Accent.ocean.color)
-            CalendarConnection(model: model, compact: true)
-            if model.feed.access == .granted {
-                ForEach(Array(model.upcomingToday.prefix(maxEvents))) { event in
-                    CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
-                    if selectedID == event.id {
-                        CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) { selectedID = nil; followUp(event) }
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar").font(.system(size: 12))
+                        Text(model.feed.isRefreshing ? "Checking today’s calendar…" : "No more events today")
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.system(size: 10))
+                    }.font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                        .frame(minHeight: 32).contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityLabel("See calendar")
+            } else {
+                HStack {
+                    Text("Calendar").font(.system(size: 12, weight: .semibold))
+                    Spacer()
+                    Button("See all", action: showCalendar).buttonStyle(.plain)
+                        .font(.system(size: 12)).accessibilityLabel("See calendar")
+                }.foregroundStyle(Palette.secondary)
+                if model.feed.access != .granted || model.feed.error != nil {
+                    CalendarConnection(model: model, compact: true)
+                }
+                if model.feed.access == .granted {
+                    ForEach(Array(model.upcomingToday.prefix(maxEvents))) { event in
+                        CalendarEventRow(event: event, model: model) { selectedID = selectedID == event.id ? nil : event.id }
+                        if selectedID == event.id {
+                            CalendarEventDetails(event: event, model: model, close: { selectedID = nil }) { selectedID = nil; followUp(event) }
+                        }
                     }
                 }
-                if model.upcomingToday.isEmpty {
-                    Text("No more events today.").font(.system(size: 12)).foregroundStyle(Palette.secondary)
-                }
-                Button("See calendar", action: showCalendar).buttonStyle(.link).font(.system(size: 12))
             }
         }
     }

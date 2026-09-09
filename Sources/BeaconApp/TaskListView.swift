@@ -83,7 +83,6 @@ struct TaskListView: View {
             Rectangle().fill(Palette.hairline).frame(width: 1)
             VStack(alignment: .leading, spacing: 0) {
                 topbar
-                heading
                 banner
                 if destination == .calendar {
                     CalendarWorkspace(model: calendarModel, search: search, followUp: { editing = .followUp($0) }, openFilters: {
@@ -92,26 +91,7 @@ struct TaskListView: View {
                     })
                 } else {
                     quickCapture
-                    if destination == .today {
-                        GeometryReader { geometry in
-                            if geometry.size.width >= 740 {
-                                HStack(alignment: .top, spacing: 0) {
-                                    content
-                                    BeaconScrollView {
-                                        TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) })
-                                    }.frame(width: 230).padding(.trailing, 32).padding(.leading, 12)
-                                }
-                            } else {
-                                VStack(spacing: 18) {
-                                    BeaconScrollView {
-                                        TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) }, maxEvents: 1)
-                                            .padding(.horizontal, 32)
-                                    }.frame(maxHeight: min(220, geometry.size.height * 0.5))
-                                    content
-                                }
-                            }
-                        }
-                    } else { content }
+                    content
                 }
                 footer
             }
@@ -143,6 +123,8 @@ struct TaskListView: View {
         .frame(minWidth: 760, minHeight: 580)
         .background {
             Button("Search reminders") { searchFocused = true }.keyboardShortcut("f").hidden()
+            Button("New reminder") { editing = .new(dictate: false, defaultDue: newReminderDue) }
+                .keyboardShortcut("n").hidden()
         }
     }
 
@@ -220,8 +202,15 @@ struct TaskListView: View {
 
     private var topbar: some View {
         HStack {
-            Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                .font(.system(size: 12)).foregroundStyle(Palette.secondary)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(destination.rawValue).font(.system(size: 24, weight: .semibold)).tracking(-0.5)
+                if destination == .today {
+                    Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                        .font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                } else if destination != .all {
+                    Text(destination.subtitle).font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                }
+            }
             Spacer()
             Button {
                 Task { await model.refresh(); await calendarModel.refresh() }
@@ -237,28 +226,21 @@ struct TaskListView: View {
                 }
             }.font(.system(size: 12)).foregroundStyle(Palette.secondary)
                 .padding(9).frame(width: 170).background(Palette.card, in: RoundedRectangle(cornerRadius: 8))
-        }.padding(.horizontal, 32).padding(.top, 21)
-    }
-
-    private var heading: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 9) {
-                Text(destination.rawValue).font(.system(size: 30, weight: .semibold)).tracking(-0.9)
-                Text(destination.subtitle).font(.system(size: 12)).foregroundStyle(Palette.secondary)
+            if destination == .calendar {
+                Button { editing = .new(dictate: false, defaultDue: newReminderDue) } label: {
+                    Image(systemName: "plus").frame(width: 30, height: 30)
+                }.buttonStyle(.plain).help("New reminder · ⌘N").accessibilityLabel("New reminder")
             }
-            Spacer(minLength: 12)
-            Button { editing = .new(dictate: false, defaultDue: newReminderDue) } label: {
-                Label("New reminder", systemImage: "plus").font(.system(size: 12, weight: .medium))
-                    .padding(.horizontal, 13).padding(.vertical, 10)
-                    .foregroundStyle(.white).background(accent, in: RoundedRectangle(cornerRadius: 9))
-            }.buttonStyle(.plain).keyboardShortcut("n")
-        }.padding(.horizontal, 32).padding(.top, 31).padding(.bottom, 24)
+        }.padding(.horizontal, 32).padding(.top, 25).padding(.bottom, 24)
     }
 
     private var quickCapture: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 11) {
-                Image(systemName: "plus.circle").font(.system(size: 19)).foregroundStyle(accent)
+                Button { editing = .new(dictate: false, defaultDue: newReminderDue) } label: {
+                    Image(systemName: "plus").font(.system(size: 14)).frame(width: 24, height: 28)
+                }.buttonStyle(.plain).foregroundStyle(accent)
+                    .help("New reminder · ⌘N").accessibilityLabel("New reminder")
                 TextField("Remind me to…", text: $capture).textFieldStyle(.plain)
                     .font(.system(size: 14)).focused($captureFocused).onSubmit(addQuickReminder)
                     .accessibilityLabel("Quick reminder")
@@ -272,8 +254,8 @@ struct TaskListView: View {
                         .background(Palette.band, in: RoundedRectangle(cornerRadius: 5))
                 }.buttonStyle(.plain).disabled(capture.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || capturing)
                     .accessibilityLabel("Add reminder")
-            }.padding(16).background(Palette.card, in: RoundedRectangle(cornerRadius: 11))
-                .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(captureFocused ? accent.opacity(0.55) : Palette.hairline, lineWidth: 1))
+            }.padding(.horizontal, 12).padding(.vertical, 7).background(Palette.card, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(captureFocused ? accent.opacity(0.55) : Palette.hairline, lineWidth: 1))
             if !capture.isEmpty {
                 Text(capturePreview)
                     .font(.system(size: 11)).foregroundStyle(Palette.secondary).padding(.leading, 3)
@@ -323,7 +305,20 @@ struct TaskListView: View {
         }
     }
 
-    @ViewBuilder private var content: some View {
+    private var content: some View {
+        BeaconScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                reminderContent
+                if destination == .today {
+                    TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) })
+                        .padding(.top, 16)
+                        .overlay(alignment: .top) { Rectangle().fill(Palette.hairline).frame(height: 1) }
+                }
+            }.padding(.horizontal, 32).padding(.bottom, 24)
+        }
+    }
+
+    @ViewBuilder private var reminderContent: some View {
         if model.access == .denied {
             AccessDeniedView(accent: accent)
         } else if model.lastRefresh == nil {
@@ -340,12 +335,12 @@ struct TaskListView: View {
                 Text(search.isEmpty ? "Use New reminder or ⌘N to add one." : "Try another title, note, or list name.")
                     .font(.system(size: 12)).foregroundStyle(Palette.secondary)
                 Spacer()
-            }.frame(maxWidth: .infinity)
+            }.frame(maxWidth: .infinity).padding(.vertical, 24)
         } else {
-            BeaconScrollView {
-                LazyVStack(alignment: .leading, spacing: 22) {
-                    ForEach(displayGroups) { group in
-                        VStack(alignment: .leading, spacing: 10) {
+            LazyVStack(alignment: .leading, spacing: 22) {
+                ForEach(displayGroups) { group in
+                    VStack(alignment: .leading, spacing: 10) {
+                        if destination != .today || model.grouping == .list {
                             HStack(spacing: 8) {
                                 Text(group.title)
                                     .font(.system(size: 12, weight: .semibold))
@@ -353,22 +348,22 @@ struct TaskListView: View {
                                     .foregroundStyle(Palette.tertiary)
                                 Spacer()
                             }.foregroundStyle(Palette.secondary)
-                            VStack(spacing: 0) {
-                                ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
-                                    TaskRow(task: task, accent: accent, isMuted: model.isMuted(task),
-                                            snoozeOptions: model.snoozeOptions(for: task), isLast: index == group.tasks.count - 1) {
-                                        Task { await model.toggleCompleted(task) }
-                                    } snooze: { interval in
-                                        Task { await model.snooze(task, by: interval) }
-                                    } mute: {
-                                        Task { await model.toggleMuted(task) }
-                                    } edit: { editing = .existing(task) }
-                                }
-                            }
-                            .overlay(alignment: .top) { Rectangle().fill(Palette.hairline).frame(height: 1) }
                         }
+                        VStack(spacing: 0) {
+                            ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
+                                TaskRow(task: task, accent: accent, isMuted: model.isMuted(task),
+                                        snoozeOptions: model.snoozeOptions(for: task), isLast: index == group.tasks.count - 1) {
+                                    Task { await model.toggleCompleted(task) }
+                                } snooze: { interval in
+                                    Task { await model.snooze(task, by: interval) }
+                                } mute: {
+                                    Task { await model.toggleMuted(task) }
+                                } edit: { editing = .existing(task) }
+                            }
+                        }
+                        .overlay(alignment: .top) { Rectangle().fill(Palette.hairline).frame(height: 1) }
                     }
-                }.padding(.horizontal, 32).padding(.bottom, 24)
+                }
             }
         }
     }

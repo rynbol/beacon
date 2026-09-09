@@ -20,3 +20,11 @@ Replies offer useful qualifications: [Mingta Kaivo](https://x.com/MingtaKaivo/st
 ## Compare safely
 
 Run `BEACON_PREVIEW=1 ./Scripts/build-mac-app.sh` and open `build/BeaconV2Preview.app`. It has a separate preview bundle identity and preferences and uses sample data; writes are disabled. This isolated preview uses sample data. Build without `BEACON_PREVIEW=1` for the regular `build/Beacon.app` with the existing app identity and saved preferences.
+
+## Main layout refinement — 2026-09-08
+
+The sidebar remains unchanged. A single compact header replaces separate date and page-title rows; Today places the date beneath its title and All reminders omits its redundant subtitle. Quick entry is shorter, with its plus opening the full editor; Cmd-N retains view-specific due defaults. Calendar retains a header plus for creating reminders.
+
+Today uses one scrolling column: reminders first, then up to three calendar events with a See all action. An empty connected calendar becomes one navigable status row. The duplicate Today grouping title is suppressed for time grouping; list grouping retains useful list headings. Permission and refresh errors remain visible. No background-theme changes are included.
+
+Sample preview checked populated and empty-calendar Today layouts, restored the test calendar toggle, and verified Cmd-N still defaults to Now in Today. Preview closed afterward.
