@@ -52,6 +52,8 @@ struct SwiftcnInputSurface: ViewModifier {
 }
 
 struct SwiftcnTabs<Value: Hashable>: View {
+    @Namespace private var tabUnderline
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selection: Value
     let options: [(value: Value, title: String)]
     var body: some View {
@@ -63,8 +65,11 @@ struct SwiftcnTabs<Value: Hashable>: View {
                         .foregroundStyle(selection == option.value ? Palette.ink : Palette.secondary)
                         .frame(height: 36)
                         .overlay(alignment: .bottom) {
-                            RoundedRectangle(cornerRadius: 1)
-                                .fill(selection == option.value ? Palette.ink : .clear).frame(height: 2)
+                            if selection == option.value {
+                                RoundedRectangle(cornerRadius: 1).fill(Palette.ink).frame(height: 2)
+                                    .matchedGeometryEffect(id: "selection", in: tabUnderline)
+                                    .allowsHitTesting(false)
+                            }
                         }.contentShape(Rectangle())
                 }.buttonStyle(.plain)
                     .accessibilityAddTraits(selection == option.value ? .isSelected : [])
@@ -72,6 +77,7 @@ struct SwiftcnTabs<Value: Hashable>: View {
         }.overlay(alignment: .bottom) {
             Rectangle().fill(Palette.hairline).frame(height: 0.5).allowsHitTesting(false)
         }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: selection)
     }
 }
 

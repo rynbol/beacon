@@ -7,6 +7,8 @@ struct SettingsView: View {
     var initiallyCalendars = false
     var initiallyNotifications = false
     private enum Section: String, CaseIterable { case appearance = "Appearance", calendars = "Calendars", alerts = "Notifications", snooze = "Snooze", help = "Help" }
+    @Namespace private var sectionHighlight
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var section: Section = .appearance
     @State private var activeChoices: Set<UUID> = []
     private var choosingOption: Bool { !activeChoices.isEmpty }
@@ -35,11 +37,18 @@ struct SettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 10).frame(height: 34)
                             .foregroundStyle(section == item ? Palette.ink : Palette.secondary)
-                            .background(section == item ? Palette.card : .clear, in: RoundedRectangle(cornerRadius: 6))
+                            .background {
+                                if section == item {
+                                    RoundedRectangle(cornerRadius: 6).fill(Palette.card)
+                                        .matchedGeometryEffect(id: "selection", in: sectionHighlight)
+                                        .allowsHitTesting(false)
+                                }
+                            }
                             .contentShape(Rectangle())
                     }.buttonStyle(.plain)
                         .accessibilityAddTraits(section == item ? .isSelected : [])
                 }
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: section)
                 Spacer()
             }.padding(12).frame(width: 154).background(Palette.band)
             Rectangle().fill(Palette.hairline).frame(width: 1)

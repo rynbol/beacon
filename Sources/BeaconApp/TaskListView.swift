@@ -48,6 +48,7 @@ struct TaskListView: View {
     @State private var settingsStartsWithNotifications = false
     @State private var settingsStartsWithCalendars = false
     @State private var showingSchedule = false
+    @Namespace private var sectionHighlight
     @State private var destination: Destination = .all
     @State private var search = ""
     @State private var capture = ""
@@ -206,11 +207,18 @@ struct TaskListView: View {
                     }
                     .foregroundStyle(destination == item ? accent : Palette.secondary)
                     .padding(.horizontal, 12).frame(height: 42)
-                    .background(destination == item ? accent.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 9))
+                    .background {
+                        if destination == item {
+                            RoundedRectangle(cornerRadius: 9).fill(accent.opacity(0.09))
+                                .matchedGeometryEffect(id: "selection", in: sectionHighlight)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).padding(.horizontal, 12).padding(.bottom, 3)
             }
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: destination)
             if destination == .calendar || destination == .today {
                 let day = destination == .calendar ? calendarModel.selectedDay : Date.now
                 let range = destination == .calendar && calendarModel.showingUpcoming
