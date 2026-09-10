@@ -4,6 +4,7 @@ import BeaconKit
 @main
 struct BeaconApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    @FocusedValue(\.sectionNavigation) private var sectionNavigation
     @NSApplicationDelegateAdaptor(NotificationDelegate.self) private var delegate
 
     private var model: TaskListModel { delegate.model }
@@ -36,6 +37,14 @@ struct BeaconApp: App {
         .defaultSize(width: 1000, height: 780)
         .windowStyle(.hiddenTitleBar)
         .commands {
+            CommandGroup(after: .sidebar) {
+                Button("Previous Section") { sectionNavigation?.previous() }
+                    .keyboardShortcut("[", modifiers: [.command, .shift])
+                    .disabled(sectionNavigation == nil)
+                Button("Next Section") { sectionNavigation?.next() }
+                    .keyboardShortcut("]", modifiers: [.command, .shift])
+                    .disabled(sectionNavigation == nil)
+            }
             // Cmd-N belongs to reminder capture; do not fall through to New Window while a dialog is open.
             CommandGroup(replacing: .newItem) {
                 Button("Refresh") {

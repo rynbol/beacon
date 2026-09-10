@@ -26,6 +26,20 @@ private enum Destination: String, CaseIterable, Identifiable {
     }
 }
 
+struct SectionNavigationActions {
+    let previous: () -> Void
+    let next: () -> Void
+}
+private struct SectionNavigationKey: FocusedValueKey {
+    typealias Value = SectionNavigationActions
+}
+extension FocusedValues {
+    var sectionNavigation: SectionNavigationActions? {
+        get { self[SectionNavigationKey.self] }
+        set { self[SectionNavigationKey.self] = newValue }
+    }
+}
+
 struct TaskListView: View {
     var model: TaskListModel
     private var calendarModel: CalendarModel { .shared }
@@ -146,12 +160,25 @@ struct TaskListView: View {
         .onChange(of: destination) { _, _ in
             calendarModel.refreshAfterNavigation()
         }
+        .focusedSceneValue(\.sectionNavigation, navigationBlocked ? nil : SectionNavigationActions(
+            previous: { moveSection(by: -1) }, next: { moveSection(by: 1) }
+        ))
         .frame(minWidth: 760, minHeight: 580)
         .background {
             Button("Search reminders") { searchFocused = true }.keyboardShortcut("f").disabled(editing != nil || showingSettings || showingSchedule || model.notificationSnoozeTask != nil).hidden()
             Button("New reminder") { editing = .new(dictate: false, defaultDue: newReminderDue) }
                 .keyboardShortcut("n").disabled(editing != nil || showingSettings || showingSchedule || model.notificationSnoozeTask != nil).hidden()
         }
+    }
+
+    private var navigationBlocked: Bool {
+        editing != nil || showingSettings || showingSchedule || model.notificationSnoozeTask != nil || capturing
+    }
+    private func moveSection(by step: Int) {
+        guard !navigationBlocked,
+              let index = Destination.allCases.firstIndex(of: destination) else { return }
+        let sections = Destination.allCases
+        destination = sections[(index + step + sections.count) % sections.count]
     }
 
     private var sidebar: some View {
