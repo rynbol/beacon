@@ -317,10 +317,6 @@ struct TaskListView: View {
                 }.buttonStyle(.plain).disabled(capture.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || capturing)
                     .accessibilityLabel("Add reminder")
             }.padding(.horizontal, 12).padding(.vertical, 7).modifier(SwiftcnInputSurface(focused: captureFocused))
-            if !capture.isEmpty {
-                Text(capturePreview)
-                    .font(.system(size: 11)).foregroundStyle(Palette.secondary).padding(.leading, 3)
-            }
         }.padding(.horizontal, 32).padding(.bottom, 24)
     }
 
@@ -336,11 +332,6 @@ struct TaskListView: View {
         }
     }
 
-    private var capturePreview: String {
-        let parsed = Capture.parse(capture)
-        if let due = parsed.due ?? newReminderDue { return "\(parsed.title)  ·  \(due.formatted(date: .abbreviated, time: .shortened))" }
-        return "No date set · added to Someday"
-    }
     private func addQuickReminder() {
         guard !capturing, !capture.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let parsed = Capture.parse(capture)
