@@ -8,7 +8,6 @@ struct CalendarWorkspace: View {
     var openFilters: () -> Void = {}
     @State private var selectedID: String?
     @State private var showingDatePicker = false
-    @State private var navigationDirection: CGFloat = 1
     @Namespace private var dayHighlight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var events: [CalendarEventSnapshot] {
@@ -79,8 +78,6 @@ struct CalendarWorkspace: View {
                                     .accessibilityAddTraits(active ? .isSelected : [])
                             }
                         }
-                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: model.selectedDay)
-                        .modifier(BeaconSectionMotion(value: model.days.first, direction: navigationDirection))
                         Text(model.selectedDay.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                             .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
                         BeaconScrollView {
@@ -95,7 +92,6 @@ struct CalendarWorkspace: View {
                             }.frame(maxWidth: .infinity)
                                 .modifier(CalendarExpansionMotion(selection: selectedID))
                         }
-                        .modifier(BeaconSectionMotion(value: model.selectedDay, direction: navigationDirection))
                     }
                 }.modifier(BeaconSectionMotion(value: model.showingUpcoming))
             } else { CalendarConnection(model: model); Spacer() }
@@ -114,12 +110,14 @@ struct CalendarWorkspace: View {
         }.buttonStyle(.plain).help(label).accessibilityLabel(label)
     }
     private func selectDay(_ date: Date) {
-        guard !Calendar.current.isDate(date, inSameDayAs: model.selectedDay) else {
+        // A date change replaces calendar text and may close a measured card.
+        // Keep that entire replacement out of any inherited animation.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            selectedID = nil
             model.selectDay(date)
-            return
         }
-        navigationDirection = date > model.selectedDay ? 1 : -1
-        model.selectDay(date)
     }
     private func moveWeek(_ step: Int) {
         selectDay(Calendar.current.date(byAdding: .weekOfYear, value: step, to: model.selectedDay)!)
@@ -519,55 +517,40 @@ private struct CalendarPersonalNotes: View {
     }
 }
 
-/// The full text never changes line limit during animation. Only its clipped
-/// viewport changes height, preventing text from reflowing halfway through close.
+/// Text expansion must not animate nested measured viewports. Use one native
+/// SwiftUI layout pass for the requested line limit, with no animated clipping.
 private struct CalendarEventNotes: View {
     let text: String
     var showsHeading = true
     @State private var expanded = false
     @State private var fullHeight: CGFloat = 0
     @State private var previewHeight: CGFloat = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private var measured: Bool { fullHeight > 0 && previewHeight > 0 }
-    private var overflows: Bool { measured && fullHeight > previewHeight + 1 }
-    private var viewportHeight: CGFloat {
-        guard measured else { return 0 }
-        return expanded ? fullHeight : min(fullHeight, previewHeight)
-    }
+    private var overflows: Bool { fullHeight > previewHeight + 1 }
 
-    private var noteText: some View {
+    private var bodyText: some View {
         Text(text).font(.system(size: 12)).lineSpacing(3)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            if showsHeading {
-                CalendarDetailHeading("Event notes")
-            }
-            noteText
+            if showsHeading { CalendarDetailHeading("Event notes") }
+            bodyText
+                .lineLimit(expanded ? nil : 5)
                 .fixedSize(horizontal: false, vertical: true)
-                // Native selectable text can redraw outside SwiftUI's animated
-                // clip while collapsing. Keep this rendering entirely SwiftUI.
                 .textSelection(.disabled)
-                .transaction { $0.animation = nil }
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                    updateHeight(height, full: true)
-                }
-                .background(alignment: .topLeading) {
-                    // Measure the five-line viewport independently, using the
-                    // same width, font, and spacing as the unchanged full text.
-                    Text(text).font(.system(size: 12)).lineSpacing(3).lineLimit(5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                            updateHeight(height, full: false)
-                        }
+                .background {
+                    // Measurement only decides whether to show the disclosure;
+                    // it never sets the visible text's height.
+                    bodyText.fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = ceil($0) }
                         .hidden().accessibilityHidden(true).allowsHitTesting(false)
                 }
-                .frame(height: viewportHeight, alignment: .top)
-                .clipped()
-                .contentShape(Rectangle())
+                .background {
+                    bodyText.lineLimit(5).fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { previewHeight = ceil($0) }
+                        .hidden().accessibilityHidden(true).allowsHitTesting(false)
+                }
                 .contextMenu {
                     Button("Copy notes") {
                         NSPasteboard.general.clearContents()
@@ -576,25 +559,14 @@ private struct CalendarEventNotes: View {
                 }
             if overflows {
                 Button(expanded ? "Show less" : "Show full notes") {
-                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) {
-                        expanded.toggle()
-                    }
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { expanded.toggle() }
                 }.buttonStyle(.plain).font(.system(size: 11, weight: .medium))
                     .foregroundStyle(TaskListModel.shared.accent.color)
             }
         }
-    }
-
-    private func updateHeight(_ height: CGFloat, full: Bool) {
-        // Measurement updates (including window resizing) aren't disclosure
-        // changes and must not start another animation or move the text baseline.
-        let value = ceil(height)
-        guard value != (full ? fullHeight : previewHeight) else { return }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            if full { fullHeight = value } else { previewHeight = value }
-        }
+        .transaction { $0.animation = nil }
     }
 }
 
