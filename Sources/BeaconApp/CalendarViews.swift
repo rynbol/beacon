@@ -325,7 +325,7 @@ private struct CalendarEventDetails: View {
                         }
                     } label: {
                         HStack(spacing: 6) {
-                            Text("Meeting details")
+                            CalendarDetailHeading("Meeting details")
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 9, weight: .medium))
                                 .rotationEffect(.degrees(showMeetingDetails ? 90 : 0))
@@ -340,16 +340,28 @@ private struct CalendarEventDetails: View {
             }
             CalendarPersonalNotes(event: event, store: model.personalNotes)
                 .id(event.personalNotesKey)
+                .padding(.top, 6)
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { actions }
-                VStack(alignment: .leading, spacing: 8) { actions }
-            }.padding(.top, 2)
+                HStack(spacing: 16) {
+                    joinMeeting
+                    Spacer(minLength: 16)
+                    followUpButton
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    joinMeeting
+                    HStack { Spacer(minLength: 0); followUpButton }
+                }
+            }
+            .padding(.top, 12)
+            .overlay(alignment: .top) {
+                Rectangle().fill(Palette.hairline.opacity(0.6)).frame(height: 1)
+            }
 
         }.padding(.leading, 29).padding(.trailing, 14).padding(.bottom, 16)
             .foregroundStyle(Palette.ink)
     }
 
-    @ViewBuilder private var actions: some View {
+    @ViewBuilder private var joinMeeting: some View {
         if let url = event.meetingURL {
             Button { if !model.isPreview { NSWorkspace.shared.open(url) } } label: {
                 Label("Join meeting", systemImage: "video")
@@ -357,6 +369,9 @@ private struct CalendarEventDetails: View {
                 .disabled(model.isPreview)
                 .help(model.isPreview ? "Meeting links are disabled in the sample preview" : "Open meeting link")
         }
+    }
+
+    private var followUpButton: some View {
         Button(action: followUp) {
             Label("Follow-up reminder", systemImage: "plus")
         }.buttonStyle(SwiftcnButtonStyle(variant: .quiet))
@@ -364,6 +379,18 @@ private struct CalendarEventDetails: View {
     }
 }
 
+
+/// Shared quiet hierarchy for event descriptions and private notes.
+private struct CalendarDetailHeading: View {
+    let title: String
+    init(_ title: String) { self.title = title }
+    var body: some View {
+        Text(title)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Palette.ink)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
 
 private struct CalendarPersonalNotes: View {
     let event: CalendarEventSnapshot
@@ -386,7 +413,7 @@ private struct CalendarPersonalNotes: View {
                 .help("Only on this Mac. Personal notes never sync to your calendar.")
             } else {
                 HStack(spacing: 6) {
-                    Text("Personal note").font(.system(size: 11, weight: .medium))
+                    CalendarDetailHeading("Personal note")
                     Image(systemName: "lock")
                         .font(.system(size: 10))
                         .foregroundStyle(Palette.tertiary)
@@ -448,7 +475,7 @@ private struct CalendarEventNotes: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             if showsHeading {
-                Text("Notes").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.secondary)
+                CalendarDetailHeading("Event notes")
             }
             noteText
                 .fixedSize(horizontal: false, vertical: true)
