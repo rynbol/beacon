@@ -17,16 +17,26 @@ struct CalendarPersonalMedia: View {
                 HStack(spacing: 8) {
                     ForEach(store.files(for: noteKey), id: \.self) { url in
                         CalendarMediaThumbnail(url: url) { previewURL = url }
-                            .contextMenu {
-                                Button("Preview") { previewURL = url }
-                                Button("Move to Trash", role: .destructive) {
+                            .overlay(alignment: .topLeading) {
+                                Button {
                                     NSWorkspace.shared.recycle([url]) { _, failure in
                                         Task { @MainActor in
                                             error = failure?.localizedDescription
                                             store.refresh()
                                         }
                                     }
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 16, height: 16)
+                                        .background(.black.opacity(0.65), in: Circle())
+                                        .frame(width: 24, height: 24)
+                                        .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                .help("Remove attachment · moves Beacon’s copy to Trash")
+                                .accessibilityLabel("Remove attachment: \(String(url.lastPathComponent.dropFirst(37)))")
                             }
                     }
                     Button(action: chooseFiles) {

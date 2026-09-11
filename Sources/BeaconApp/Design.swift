@@ -354,6 +354,8 @@ struct BeaconNotesEditor: View {
     var editorFont: Font = .taskTitle
     var editorHeight: CGFloat = 108
     var placeholder = "Add a detail, a link, or a little context…"
+    var onSubmit: (() -> Void)?
+    @State private var submitKeys = NoteSubmitKeys()
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -363,6 +365,7 @@ struct BeaconNotesEditor: View {
             .scrollContentBackground(.hidden)
             .focused($focused)
             .introspect(.textEditor, on: .macOS(.v26)) { editor in
+                submitKeys.install(on: editor, submit: onSubmit)
                 editor.isRichText = false
                 editor.allowsUndo = true
                 editor.drawsBackground = false
@@ -385,6 +388,7 @@ struct BeaconNotesEditor: View {
                 }
             }
             .accessibilityLabel("Notes")
+            .onDisappear { submitKeys.remove() }
             .task {
                 guard autofocus else { return }
                 await Task.yield()
@@ -393,6 +397,38 @@ struct BeaconNotesEditor: View {
     }
 }
 
+
+/// Intercept Return only for the active personal-note text view. Other editors,
+/// Shift-Return, and IME composition retain their native behavior.
+@MainActor
+private final class NoteSubmitKeys {
+    private weak var editor: NSTextView?
+    private var submit: (() -> Void)?
+    private var monitor: Any?
+
+    func install(on editor: NSTextView, submit: (() -> Void)?) {
+        self.editor = editor
+        self.submit = submit
+        guard submit != nil else { remove(); return }
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, let editor = self.editor,
+                  editor.window?.firstResponder === editor,
+                  event.keyCode == 36 || event.keyCode == 76,
+                  event.modifierFlags.intersection([.shift, .control, .option, .command]).isEmpty,
+                  !editor.hasMarkedText() else { return event }
+            self.submit?()
+            return nil
+        }
+    }
+
+    func remove() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        editor = nil
+        submit = nil
+    }
+}
 
 /// A short entrance when navigation changes, without replacing the view's
 /// identity or animating subsequent data refreshes and edits.

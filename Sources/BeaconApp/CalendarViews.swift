@@ -445,7 +445,7 @@ private struct CalendarPersonalNotes: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help(editing ? "Finish editing · changes save automatically" : "Edit personal note")
+                    .help(editing ? "Done · Enter to finish, Shift+Enter for a new line" : "Edit personal note")
                     .accessibilityLabel(editing ? "Done editing personal note" : "Edit personal note")
                 }
                 .foregroundStyle(Palette.secondary)
@@ -465,7 +465,8 @@ private struct CalendarPersonalNotes: View {
                         if editing {
                             BeaconNotesEditor(text: Binding(get: { text }, set: { store.set($0, for: key) }),
                                               autofocus: true, editorFont: .system(size: 12),
-                                              editorHeight: 96, placeholder: "Add a note for yourself…")
+                                              editorHeight: 96, placeholder: "Add a note for yourself…",
+                                              onSubmit: { setEditing(false) })
                                 .accessibilityLabel("Personal event notes")
                                 .transition(reduceMotion ? .opacity : .offset(y: -6).combined(with: .opacity))
                         }
