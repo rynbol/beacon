@@ -222,6 +222,7 @@ private struct CalendarEventCard: View {
     @Binding var selectedID: String?
     let followUp: (CalendarEventSnapshot) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var detailsHeight: CGFloat = 0
     private var expanded: Bool { selectedID == event.id }
 
     var body: some View {
@@ -232,7 +233,7 @@ private struct CalendarEventCard: View {
                         .frame(width: 3)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(event.title).font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Palette.ink).lineLimit(expanded ? nil : 2)
+                            .foregroundStyle(Palette.ink).lineLimit(2)
                         Text(CalendarEventFormatting.timeRange(event))
                             .font(.system(size: 11)).foregroundStyle(Palette.secondary)
                         Text(model.source(for: event.calendarID).map { "\($0.title) · \($0.source)" } ?? "Calendar")
@@ -247,23 +248,26 @@ private struct CalendarEventCard: View {
                 .accessibilityLabel("\(event.title), \(CalendarEventFormatting.timeRange(event))")
                 .accessibilityValue(expanded ? "Expanded" : "Collapsed")
                 .accessibilityHint(expanded ? "Collapse event details" : "Expand event details")
-            // Clip the reveal to its own region, so details emerge below the
-            // header rather than sliding over the title or neighboring events.
-            VStack(spacing: 0) {
-                if expanded {
-                    CalendarEventDetails(event: event, model: model) {
-                        guard selectedID == event.id else { return }
-                        selectedID = nil
-                        followUp(event)
-                    }
-                    .transition(reduceMotion ? .opacity : .offset(y: -12).combined(with: .opacity))
-                }
-            }.clipped()
-                // Clipping alone does not limit SwiftUI hit testing. Outgoing
-                // content must not cover headers while its transition finishes.
-                .contentShape(Rectangle())
-                .allowsHitTesting(expanded)
-                .accessibilityHidden(!expanded)
+            // Keep each event's details laid out at their natural height.
+            // Switching cards animates only the clipped viewport, never text
+            // insertion/removal or an intermediate proposed text height.
+            CalendarEventDetails(event: event, model: model, isExpanded: expanded) {
+                guard selectedID == event.id else { return }
+                selectedID = nil
+                followUp(event)
+            }
+            .id(event.id)
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                detailsHeight = ceil(height)
+            }
+            .offset(y: expanded || reduceMotion ? 0 : -12)
+            .frame(height: expanded ? detailsHeight : 0, alignment: .top)
+            .clipped()
+            .contentShape(Rectangle())
+            .allowsHitTesting(expanded)
+            .accessibilityElement(children: expanded ? .contain : .ignore)
+            .accessibilityHidden(!expanded)
         }.clipShape(RoundedRectangle(cornerRadius: 10))
             .background {
                 if expanded {
@@ -288,6 +292,7 @@ private struct CalendarExpansionMotion: ViewModifier {
 private struct CalendarEventDetails: View {
     let event: CalendarEventSnapshot
     var model: CalendarModel
+    let isExpanded: Bool
     let followUp: () -> Void
     private var notes: (body: String, meetingDetails: String) {
         CalendarNotes.presentation(event.notes.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -350,7 +355,7 @@ private struct CalendarEventDetails: View {
                         .accessibilityHidden(!showMeetingDetails)
                 }.clipped()
             }
-            CalendarPersonalNotes(event: event, store: model.personalNotes, media: model.personalMedia)
+            CalendarPersonalNotes(event: event, store: model.personalNotes, media: model.personalMedia, isExpanded: isExpanded)
                 .id(event.personalNotesKey)
                 .padding(.top, 6)
             ViewThatFits(in: .horizontal) {
@@ -408,6 +413,7 @@ private struct CalendarPersonalNotes: View {
     let event: CalendarEventSnapshot
     var store: CalendarPersonalNotesStore
     var media: CalendarMediaStore
+    let isExpanded: Bool
     @State private var editing = false
     @State private var savedHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -479,6 +485,9 @@ private struct CalendarPersonalNotes: View {
                 Text(error).font(.taskMeta).foregroundStyle(Palette.secondary)
                 Button("Retry saving") { store.set(text, for: key) }.buttonStyle(SwiftcnButtonStyle())
             }
+        }
+        .onChange(of: isExpanded) { _, active in
+            if !active { editing = false }
         }
     }
 
