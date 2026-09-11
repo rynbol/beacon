@@ -351,11 +351,14 @@ struct BeaconScrollView<Content: View>: View {
 struct BeaconNotesEditor: View {
     @Binding var text: String
     var autofocus = false
+    var editorFont: Font = .taskTitle
+    var editorHeight: CGFloat = 108
+    var placeholder = "Add a detail, a link, or a little context…"
     @FocusState private var focused: Bool
 
     var body: some View {
         TextEditor(text: $text)
-            .font(.taskTitle)
+            .font(editorFont)
             .foregroundStyle(Palette.ink)
             .scrollContentBackground(.hidden)
             .focused($focused)
@@ -371,12 +374,12 @@ struct BeaconNotesEditor: View {
                     scrollView.verticalScroller?.controlSize = .small
                 }
             }
-            .frame(height: 108)
+            .frame(height: editorHeight)
             .modifier(SwiftcnInputSurface(focused: focused))
             .overlay(alignment: .topLeading) {
                 if text.isEmpty {
-                    Text("Add a detail, a link, or a little context…")
-                        .font(.taskTitle).foregroundStyle(Palette.tertiary)
+                    Text(placeholder)
+                        .font(editorFont).foregroundStyle(Palette.tertiary)
                         .padding(.horizontal, 14).padding(.vertical, 11)
                         .allowsHitTesting(false).accessibilityHidden(true)
                 }

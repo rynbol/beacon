@@ -45,10 +45,12 @@ Layout verification: the sample-data Mac preview was checked after consolidating
 
 ### Personal event notes
 
-Expanded event cards have a **Personal notes** section with a compact preview and an inline plain-text editor. Edits save immediately; Done returns to the preview. Clearing the text removes the local note. The same note is available from Day, Next 7 days, and Today’s shared event card.
+Expanded event cards offer a single **Add personal note** row when empty. Saved notes use selectable text matching the calendar description, with a pencil beside the heading and an inline plain-text editor. Longer notes have a five-line preview with Show full notes/Show less. The lock beside the heading explains local-only autosave on hover and to accessibility clients. Edits save immediately; Done returns to the preview. Clearing the text removes the local note. The same note is available from Day, Next 7 days, and Today’s shared event card.
 
 Notes live in `~/Library/Application Support/Beacon/calendar-personal-notes.json`, with atomic writes and owner-only file permissions. They never enter EventKit, calendar descriptions, or generated follow-up reminders, and Beacon does not sync them. The design preview uses its own `BeaconDesignPreview` directory. Failed writes retain the draft in memory and show a retry action; an unreadable file is never overwritten.
 
 Identity uses the calendar and event identifiers, plus the original occurrence date for recurring events. This preserves notes when an event’s start time changes and keeps recurring occurrences separate. Provider/account rebuilds that replace identifiers may break that association; those provider behaviors have not been device-tested. Notes for events that disappear are retained locally.
 
 Validation: 148 unit tests passed, including save/reload/clear, Unicode and multiline content, failed-write recovery, corrupt-file preservation, recurrence identity, and preview isolation. Both macOS bundles built successfully. Sample-preview UI checks covered autofocus, multiline editing, compact saved layout, Day/Next 7 days consistency, persistence after quitting/relaunching, and clearing a note. No live calendar events or reminders were modified.
+
+Notes UI refinement validated in the sample preview: empty state, editor autofocus, matching typography, saved selectable text, long-note expand/collapse, re-editing, and clearing. Main and preview macOS builds passed.

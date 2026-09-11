@@ -350,33 +350,47 @@ private struct CalendarPersonalNotes: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Personal notes").font(.system(size: 11, weight: .medium))
-                Spacer()
-                Text("Only on this Mac").font(.system(size: 10)).foregroundStyle(Palette.tertiary)
-            }.foregroundStyle(Palette.secondary)
-            if editing {
-                BeaconNotesEditor(text: Binding(get: { text }, set: { store.set($0, for: key) }), autofocus: true)
-                    .accessibilityLabel("Personal event notes")
-                HStack {
-                    if store.error(for: key) == nil {
-                        Text("Saved locally").font(.system(size: 10)).foregroundStyle(Palette.secondary)
-                    }
-                    Spacer()
-                    Button("Done") { editing = false }.buttonStyle(SwiftcnButtonStyle(variant: .quiet))
-                }
-            } else if text.isEmpty {
-                Button { editing = true } label: { Label("Add personal note", systemImage: "plus") }
-                    .buttonStyle(SwiftcnButtonStyle(variant: .quiet))
-            } else {
+            if !editing && text.isEmpty {
                 Button { editing = true } label: {
-                    HStack(alignment: .top, spacing: 10) {
-                        Text(text).font(.system(size: 12)).lineLimit(4)
-                            .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
-                        Image(systemName: "pencil").font(.system(size: 11)).foregroundStyle(Palette.secondary)
-                    }.padding(10).background(Palette.band, in: RoundedRectangle(cornerRadius: 8))
+                    Label("Add personal note", systemImage: "square.and.pencil")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.secondary)
+                        .padding(.vertical, 5)
                         .contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityLabel("Edit personal note: \(text)")
+                }
+                .buttonStyle(.plain)
+                .help("Only on this Mac. Personal notes never sync to your calendar.")
+            } else {
+                HStack(spacing: 6) {
+                    Text("Personal note").font(.system(size: 11, weight: .medium))
+                    Image(systemName: "lock")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Palette.tertiary)
+                        .help("Only on this Mac. Saves automatically and never syncs to your calendar.")
+                        .accessibilityLabel("Saved automatically on this Mac only")
+                    Spacer(minLength: 8)
+                    Button { editing.toggle() } label: {
+                        Group {
+                            if editing { Text("Done") }
+                            else { Image(systemName: "pencil") }
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(minWidth: 28, minHeight: 24)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(editing ? "Finish editing · changes save automatically" : "Edit personal note")
+                    .accessibilityLabel(editing ? "Done editing personal note" : "Edit personal note")
+                }
+                .foregroundStyle(Palette.secondary)
+                if editing {
+                    BeaconNotesEditor(text: Binding(get: { text }, set: { store.set($0, for: key) }),
+                                      autofocus: true, editorFont: .system(size: 12),
+                                      editorHeight: 96, placeholder: "Add a note for yourself…")
+                        .accessibilityLabel("Personal event notes")
+                } else {
+                    CalendarEventNotes(text: text, showsHeading: false)
+                }
             }
             if let error = store.error(for: key) {
                 Text(error).font(.taskMeta).foregroundStyle(Palette.secondary)
@@ -390,6 +404,7 @@ private struct CalendarPersonalNotes: View {
 /// viewport changes height, preventing text from reflowing halfway through close.
 private struct CalendarEventNotes: View {
     let text: String
+    var showsHeading = true
     @State private var expanded = false
     @State private var fullHeight: CGFloat = 0
     @State private var previewHeight: CGFloat = 0
@@ -408,7 +423,9 @@ private struct CalendarEventNotes: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text("Notes").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.secondary)
+            if showsHeading {
+                Text("Notes").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.secondary)
+            }
             noteText
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
