@@ -293,6 +293,7 @@ private struct CalendarEventDetails: View {
         CalendarNotes.presentation(event.notes.trimmingCharacters(in: .whitespacesAndNewlines))
     }
     @State private var showMeetingDetails = false
+    @State private var meetingDetailsHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var location: String {
         let value = event.location.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -318,7 +319,7 @@ private struct CalendarEventDetails: View {
                 CalendarEventNotes(text: notes.body)
             }
             if !notes.meetingDetails.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 0) {
                     Button {
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) {
                             showMeetingDetails.toggle()
@@ -332,10 +333,21 @@ private struct CalendarEventDetails: View {
                         }.font(.system(size: 12)).padding(.vertical, 4).contentShape(Rectangle())
                     }.buttonStyle(.plain).foregroundStyle(Palette.secondary)
                         .accessibilityValue(showMeetingDetails ? "Expanded" : "Collapsed")
-                    if showMeetingDetails {
-                        CalendarEventNotes(text: notes.meetingDetails, showsHeading: false)
-                            .transition(.opacity)
-                    }
+                    // Keep text laid out while animating only its viewport.
+                    // This prevents measurement jumps during insertion/removal.
+                    CalendarEventNotes(text: notes.meetingDetails, showsHeading: false)
+                        .padding(.top, 10)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                            meetingDetailsHeight = ceil(height)
+                        }
+                        .offset(y: showMeetingDetails || reduceMotion ? 0 : -12)
+                        .frame(height: showMeetingDetails ? meetingDetailsHeight : 0, alignment: .top)
+                        .clipped()
+                        .contentShape(Rectangle())
+                        .allowsHitTesting(showMeetingDetails)
+                        .accessibilityElement(children: showMeetingDetails ? .contain : .ignore)
+                        .accessibilityHidden(!showMeetingDetails)
                 }.clipped()
             }
             CalendarPersonalNotes(event: event, store: model.personalNotes)
