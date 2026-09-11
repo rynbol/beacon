@@ -526,7 +526,10 @@ private struct CalendarEventNotes: View {
             }
             noteText
                 .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+                // Native selectable text can redraw outside SwiftUI's animated
+                // clip while collapsing. Keep this rendering entirely SwiftUI.
+                .textSelection(.disabled)
+                .transaction { $0.animation = nil }
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                     updateHeight(height, full: true)
                 }
@@ -544,8 +547,12 @@ private struct CalendarEventNotes: View {
                 .frame(height: viewportHeight, alignment: .top)
                 .clipped()
                 .contentShape(Rectangle())
-                // Don't allow selection to scroll clipped-off text into view.
-                .allowsHitTesting(expanded || !overflows)
+                .contextMenu {
+                    Button("Copy notes") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    }
+                }
             if overflows {
                 Button(expanded ? "Show less" : "Show full notes") {
                     withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) {
