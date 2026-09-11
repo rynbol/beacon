@@ -307,6 +307,8 @@ private struct CalendarEventDetails: View {
             if !notes.isEmpty {
                 CalendarEventNotes(text: notes)
             }
+            CalendarPersonalNotes(event: event, store: model.personalNotes)
+                .id(event.personalNotesKey)
             HStack(alignment: .top, spacing: 8) {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) { actions }
@@ -338,6 +340,51 @@ private struct CalendarEventDetails: View {
     }
 }
 
+
+private struct CalendarPersonalNotes: View {
+    let event: CalendarEventSnapshot
+    var store: CalendarPersonalNotesStore
+    @State private var editing = false
+    private var key: String { event.personalNotesKey }
+    private var text: String { store.text(for: key) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Personal notes").font(.system(size: 11, weight: .medium))
+                Spacer()
+                Text("Only on this Mac").font(.system(size: 10)).foregroundStyle(Palette.tertiary)
+            }.foregroundStyle(Palette.secondary)
+            if editing {
+                BeaconNotesEditor(text: Binding(get: { text }, set: { store.set($0, for: key) }), autofocus: true)
+                    .accessibilityLabel("Personal event notes")
+                HStack {
+                    if store.error(for: key) == nil {
+                        Text("Saved locally").font(.system(size: 10)).foregroundStyle(Palette.secondary)
+                    }
+                    Spacer()
+                    Button("Done") { editing = false }.buttonStyle(SwiftcnButtonStyle(variant: .quiet))
+                }
+            } else if text.isEmpty {
+                Button { editing = true } label: { Label("Add personal note", systemImage: "plus") }
+                    .buttonStyle(SwiftcnButtonStyle(variant: .quiet))
+            } else {
+                Button { editing = true } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(text).font(.system(size: 12)).lineLimit(4)
+                            .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "pencil").font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                    }.padding(10).background(Palette.band, in: RoundedRectangle(cornerRadius: 8))
+                        .contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityLabel("Edit personal note: \(text)")
+            }
+            if let error = store.error(for: key) {
+                Text(error).font(.taskMeta).foregroundStyle(Palette.secondary)
+                Button("Retry saving") { store.set(text, for: key) }.buttonStyle(SwiftcnButtonStyle())
+            }
+        }
+    }
+}
 
 /// The full text never changes line limit during animation. Only its clipped
 /// viewport changes height, preventing text from reflowing halfway through close.

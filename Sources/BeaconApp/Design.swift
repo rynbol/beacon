@@ -350,6 +350,7 @@ struct BeaconScrollView<Content: View>: View {
 /// Plain-text AppKit editing, with native undo and bounded multiline scrolling.
 struct BeaconNotesEditor: View {
     @Binding var text: String
+    var autofocus = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -381,6 +382,11 @@ struct BeaconNotesEditor: View {
                 }
             }
             .accessibilityLabel("Notes")
+            .task {
+                guard autofocus else { return }
+                await Task.yield()
+                focused = true
+            }
     }
 }
 

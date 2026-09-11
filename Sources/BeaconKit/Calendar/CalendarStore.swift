@@ -49,7 +49,8 @@ public actor CalendarStore: CalendarReading {
                 let snapshot = CalendarEventSnapshot(identifier: event.eventIdentifier ?? event.calendarItemIdentifier,
                     calendarID: calendarID, title: event.title ?? "Untitled event", start: start, end: end,
                     isAllDay: event.isAllDay, location: event.location ?? "", notes: event.notes ?? "",
-                    meetingURL: CalendarEventSnapshot.meetingLink(in: linkText))
+                    meetingURL: CalendarEventSnapshot.meetingLink(in: linkText),
+                    occurrenceDate: (event.hasRecurrenceRules || event.isDetached) ? (event.occurrenceDate ?? start) : nil)
                 if seen.insert(snapshot.id).inserted { snapshots.append(snapshot) }
             }
         }

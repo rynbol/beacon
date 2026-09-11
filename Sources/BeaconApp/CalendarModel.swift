@@ -6,6 +6,7 @@ import EventKit
 final class CalendarModel {
     static let shared = CalendarModel()
     let feed: CalendarFeed
+    let personalNotes: CalendarPersonalNotesStore
     private(set) var selectedDay = Calendar.current.startOfDay(for: Date())
     private(set) var hiddenIDs: Set<String>
     private(set) var colorOverrides: [String: String]
@@ -22,6 +23,10 @@ final class CalendarModel {
     init() {
         let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview"
         isPreview = preview
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        personalNotes = CalendarPersonalNotesStore(url: support
+            .appendingPathComponent(preview ? "BeaconDesignPreview" : "Beacon", isDirectory: true)
+            .appendingPathComponent("calendar-personal-notes.json"))
         defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
         includeKeywords = UpcomingEventFilter.labels(defaults.stringArray(forKey: "upcomingIncludeKeywords") ?? [])
         excludeKeywords = UpcomingEventFilter.labels(defaults.stringArray(forKey: "upcomingExcludeKeywords") ?? [])

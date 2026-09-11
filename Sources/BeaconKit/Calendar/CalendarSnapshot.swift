@@ -23,6 +23,12 @@ public struct EventCalendarSnapshot: Identifiable, Sendable, Equatable {
 public struct CalendarEventSnapshot: Identifiable, Sendable, Equatable {
     /// A recurring event's identifier alone does not identify its occurrence.
     public var id: String { "\(calendarID)|\(identifier)|\(start.timeIntervalSinceReferenceDate)" }
+    /// Original occurrence date stays stable when a recurring occurrence moves.
+    public let occurrenceDate: Date?
+    public var personalNotesKey: String {
+        let parts = [calendarID, identifier, occurrenceDate.map { String($0.timeIntervalSinceReferenceDate) } ?? "event"]
+        return (try? JSONEncoder().encode(parts).base64EncodedString()) ?? id
+    }
     public let identifier: String
     public let calendarID: String
     public let title: String
@@ -33,7 +39,8 @@ public struct CalendarEventSnapshot: Identifiable, Sendable, Equatable {
     public let notes: String
     public let meetingURL: URL?
     public init(identifier: String, calendarID: String, title: String, start: Date, end: Date,
-                isAllDay: Bool = false, location: String = "", notes: String = "", meetingURL: URL? = nil) {
+                isAllDay: Bool = false, location: String = "", notes: String = "", meetingURL: URL? = nil, occurrenceDate: Date? = nil) {
+        self.occurrenceDate = occurrenceDate
         self.identifier = identifier; self.calendarID = calendarID; self.title = title
         self.start = start; self.end = end; self.isAllDay = isAllDay
         self.location = location; self.notes = CalendarNotes.plainText(notes); self.meetingURL = meetingURL
