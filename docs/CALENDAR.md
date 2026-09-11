@@ -54,3 +54,9 @@ Identity uses the calendar and event identifiers, plus the original occurrence d
 Validation: 148 unit tests passed, including save/reload/clear, Unicode and multiline content, failed-write recovery, corrupt-file preservation, recurrence identity, and preview isolation. Both macOS bundles built successfully. Sample-preview UI checks covered autofocus, multiline editing, compact saved layout, Day/Next 7 days consistency, persistence after quitting/relaunching, and clearing a note. No live calendar events or reminders were modified.
 
 Notes UI refinement validated in the sample preview: empty state, editor autofocus, matching typography, saved selectable text, long-note expand/collapse, re-editing, and clearing. Main and preview macOS builds passed.
+
+### Event card cleanup
+
+The header chevron collapses the event; there is no duplicate visible X. Escape retains a keyboard-only collapse action. Recognized paired Google Meet separator blocks are shown under a collapsed Meeting details disclosure, without the decorative separator lines. Dial-in and help information remains accessible; prose outside that generated block stays in Notes. Unrecognized or incomplete blocks stay intact. Follow-up reminder uses a quiet secondary action beside Join meeting. Calendar source data is unchanged.
+
+Validation: 150 unit tests passed, including generated-block separation and preservation of ordinary/incomplete notes. Main and preview builds passed; sample UI checked meeting-details expansion/collapse and header dismissal.

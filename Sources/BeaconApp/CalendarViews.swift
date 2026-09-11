@@ -251,9 +251,7 @@ private struct CalendarEventCard: View {
             // header rather than sliding over the title or neighboring events.
             VStack(spacing: 0) {
                 if expanded {
-                    CalendarEventDetails(event: event, model: model, close: {
-                        if selectedID == event.id { selectedID = nil }
-                    }) {
+                    CalendarEventDetails(event: event, model: model) {
                         guard selectedID == event.id else { return }
                         selectedID = nil
                         followUp(event)
@@ -267,6 +265,15 @@ private struct CalendarEventCard: View {
                 .allowsHitTesting(expanded)
                 .accessibilityHidden(!expanded)
         }.clipShape(RoundedRectangle(cornerRadius: 10))
+            .background {
+                if expanded {
+                    // Retain Escape without a duplicate visible close control.
+                    Button("Collapse event") { selectedID = nil }
+                        .keyboardShortcut(.cancelAction)
+                        .frame(width: 0, height: 0).opacity(0)
+                        .allowsHitTesting(false).accessibilityHidden(true)
+                }
+            }
     }
 }
 
@@ -281,9 +288,12 @@ private struct CalendarExpansionMotion: ViewModifier {
 private struct CalendarEventDetails: View {
     let event: CalendarEventSnapshot
     var model: CalendarModel
-    let close: () -> Void
     let followUp: () -> Void
-    private var notes: String { event.notes.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var notes: (body: String, meetingDetails: String) {
+        CalendarNotes.presentation(event.notes.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+    @State private var showMeetingDetails = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var location: String {
         let value = event.location.trimmingCharacters(in: .whitespacesAndNewlines)
         // A meeting URL already has its own action; don't display the long URL
@@ -304,23 +314,37 @@ private struct CalendarEventDetails: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }.font(.system(size: 12))
             }
-            if !notes.isEmpty {
-                CalendarEventNotes(text: notes)
+            if !notes.body.isEmpty {
+                CalendarEventNotes(text: notes.body)
+            }
+            if !notes.meetingDetails.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Button {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) {
+                            showMeetingDetails.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Meeting details")
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .medium))
+                                .rotationEffect(.degrees(showMeetingDetails ? 90 : 0))
+                        }.font(.system(size: 12)).padding(.vertical, 4).contentShape(Rectangle())
+                    }.buttonStyle(.plain).foregroundStyle(Palette.secondary)
+                        .accessibilityValue(showMeetingDetails ? "Expanded" : "Collapsed")
+                    if showMeetingDetails {
+                        CalendarEventNotes(text: notes.meetingDetails, showsHeading: false)
+                            .transition(.opacity)
+                    }
+                }.clipped()
             }
             CalendarPersonalNotes(event: event, store: model.personalNotes)
                 .id(event.personalNotesKey)
-            HStack(alignment: .top, spacing: 8) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) { actions }
-                    VStack(alignment: .leading, spacing: 8) { actions }
-                }
-                Spacer(minLength: 0)
-                Button(action: close) {
-                    Image(systemName: "xmark").frame(width: 28, height: 32).contentShape(Rectangle())
-                }.buttonStyle(.plain).foregroundStyle(Palette.secondary)
-                    .keyboardShortcut(.cancelAction).help("Close event details · Esc")
-                    .accessibilityLabel("Close event details")
-            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { actions }
+                VStack(alignment: .leading, spacing: 8) { actions }
+            }.padding(.top, 2)
+
         }.padding(.leading, 29).padding(.trailing, 14).padding(.bottom, 16)
             .foregroundStyle(Palette.ink)
     }
@@ -335,7 +359,7 @@ private struct CalendarEventDetails: View {
         }
         Button(action: followUp) {
             Label("Follow-up reminder", systemImage: "plus")
-        }.buttonStyle(SwiftcnButtonStyle())
+        }.buttonStyle(SwiftcnButtonStyle(variant: .quiet))
             .accessibilityLabel("Create a follow-up reminder")
     }
 }

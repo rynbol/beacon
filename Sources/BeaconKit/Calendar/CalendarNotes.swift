@@ -4,6 +4,23 @@ import SwiftSoup
 /// Converts provider HTML into inert readable text. Parsing never loads URLs or
 /// executes markup, and calendar source data is never written back.
 public enum CalendarNotes {
+    /// Separate only a paired Google-generated block; preserve ordinary prose.
+    public static func presentation(_ text: String) -> (body: String, meetingDetails: String) {
+        let lines = text.components(separatedBy: .newlines)
+        let markers = lines.indices.filter { index in
+            let line = lines[index].trimmingCharacters(in: .whitespaces)
+            return line.count >= 20 && line.contains("~") && line.allSatisfy { "-:~".contains($0) }
+        }
+        guard let first = markers.first, let last = markers.dropFirst().first, last > first,
+              lines[(first + 1)..<last].contains(where: { $0.contains("https://meet.google.com/") }) else {
+            return (text, "")
+        }
+        let details = lines[(first + 1)..<last].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = (Array(lines[..<first]) + Array(lines[(last + 1)...]))
+            .joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return (body, details)
+    }
+
     public static func plainText(_ source: String) -> String {
         let htmlTag = #"(?i)</?(?:html|body|p|div|br|a|span|ul|ol|li|b|strong|i|em|table|tr|td|h[1-6]|pre|blockquote|script|style|img)\b[^>]*>"#
         guard source.range(of: htmlTag, options: .regularExpression) != nil,

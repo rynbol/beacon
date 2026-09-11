@@ -2,6 +2,24 @@ import XCTest
 @testable import BeaconKit
 
 final class CalendarNotesTests: XCTestCase {
+    func testGeneratedMeetingBlockIsSeparatedWithoutLosingUserNotes() {
+        let marker = String(repeating: "-:~:", count: 8)
+        let details = "Join with Google Meet: https://meet.google.com/sample\nOr dial: sample\nPlease do not edit this section."
+        let source = "Bring the proposal.\n\n\(marker)\n\(details)\n\(marker)\nAfterword."
+        let result = CalendarNotes.presentation(source)
+        XCTAssertEqual(result.body, "Bring the proposal.\n\nAfterword.")
+        XCTAssertEqual(result.meetingDetails, details)
+        XCTAssertEqual(CalendarNotes.presentation("\(marker)\n\(details)\n\(marker)").body, "")
+    }
+
+    func testOrdinaryAndIncompleteMeetingNotesStayVisible() {
+        let marker = String(repeating: "-:~:", count: 8)
+        for source in ["Join with Google Meet: https://meet.google.com/sample", "\(marker)\nhttps://meet.google.com/sample", "\(marker)\nMy own notes\n\(marker)", ""] {
+            XCTAssertEqual(CalendarNotes.presentation(source).body, source)
+            XCTAssertEqual(CalendarNotes.presentation(source).meetingDetails, "")
+        }
+    }
+
     func testPlainTextIsPreservedIncludingLineBreaksAndComparisons() {
         let text = "Keep <draft> as written.\n\nCost < 50 & time > 20.\n"
         XCTAssertEqual(CalendarNotes.plainText(text), text)
