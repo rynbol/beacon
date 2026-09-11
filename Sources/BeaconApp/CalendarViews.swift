@@ -409,13 +409,15 @@ private struct CalendarPersonalNotes: View {
     var store: CalendarPersonalNotesStore
     var media: CalendarMediaStore
     @State private var editing = false
+    @State private var savedHeight: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var key: String { event.personalNotesKey }
     private var text: String { store.text(for: key) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !editing && text.isEmpty {
-                Button { editing = true } label: {
+                Button { setEditing(true) } label: {
                     Label("Add personal note", systemImage: "square.and.pencil")
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.secondary)
@@ -433,7 +435,7 @@ private struct CalendarPersonalNotes: View {
                         .help("Only on this Mac. Saves automatically and never syncs to your calendar.")
                         .accessibilityLabel("Saved automatically on this Mac only")
                     Spacer(minLength: 8)
-                    Button { editing.toggle() } label: {
+                    Button { setEditing(!editing) } label: {
                         Group {
                             if editing { Text("Done") }
                             else { Image(systemName: "pencil") }
@@ -447,20 +449,41 @@ private struct CalendarPersonalNotes: View {
                     .accessibilityLabel(editing ? "Done editing personal note" : "Edit personal note")
                 }
                 .foregroundStyle(Palette.secondary)
-                if editing {
-                    BeaconNotesEditor(text: Binding(get: { text }, set: { store.set($0, for: key) }),
-                                      autofocus: true, editorFont: .system(size: 12),
-                                      editorHeight: 96, placeholder: "Add a note for yourself…")
-                        .accessibilityLabel("Personal event notes")
-                } else {
-                    CalendarEventNotes(text: text, showsHeading: false)
-                }
+                // Measure the saved text while editing, so Done has its final
+                // height immediately instead of jumping after insertion.
+                CalendarEventNotes(text: text, showsHeading: false)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                        savedHeight = ceil(height)
+                    }
+                    .opacity(editing ? 0 : 1)
+                    .allowsHitTesting(!editing)
+                    .accessibilityElement(children: editing ? .ignore : .contain)
+                    .accessibilityHidden(editing)
+                    .frame(height: editing ? 96 : savedHeight, alignment: .top)
+                    .overlay(alignment: .topLeading) {
+                        if editing {
+                            BeaconNotesEditor(text: Binding(get: { text }, set: { store.set($0, for: key) }),
+                                              autofocus: true, editorFont: .system(size: 12),
+                                              editorHeight: 96, placeholder: "Add a note for yourself…")
+                                .accessibilityLabel("Personal event notes")
+                                .transition(reduceMotion ? .opacity : .offset(y: -6).combined(with: .opacity))
+                        }
+                    }
+                    .clipped()
+
             }
             CalendarPersonalMedia(store: media, noteKey: key)
             if let error = store.error(for: key) {
                 Text(error).font(.taskMeta).foregroundStyle(Palette.secondary)
                 Button("Retry saving") { store.set(text, for: key) }.buttonStyle(SwiftcnButtonStyle())
             }
+        }
+    }
+
+    private func setEditing(_ value: Bool) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) {
+            editing = value
         }
     }
 }
