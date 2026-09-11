@@ -434,12 +434,13 @@ private final class NoteSubmitKeys {
 /// identity or animating subsequent data refreshes and edits.
 struct BeaconSectionMotion<Value: Equatable>: ViewModifier {
     let value: Value
+    var direction: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content.phaseAnimator([false, true], trigger: value) { view, entering in
             view
-                .offset(x: !reduceMotion && entering ? 16 : 0)
+                .offset(x: !reduceMotion && entering ? 16 * direction : 0)
                 .opacity(!reduceMotion && entering ? 0 : 1)
         } animation: { entering in
             reduceMotion || entering ? nil : .easeOut(duration: 0.24)

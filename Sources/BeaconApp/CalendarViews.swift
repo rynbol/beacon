@@ -8,6 +8,9 @@ struct CalendarWorkspace: View {
     var openFilters: () -> Void = {}
     @State private var selectedID: String?
     @State private var showingDatePicker = false
+    @State private var navigationDirection: CGFloat = 1
+    @Namespace private var dayHighlight
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var events: [CalendarEventSnapshot] {
         model.selectedEvents.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) || $0.location.localizedCaseInsensitiveContains(search) }
     }
@@ -31,7 +34,7 @@ struct CalendarWorkspace: View {
                                 .font(.system(size: 16, weight: .medium)).lineLimit(1)
                             navigationButton("chevron.right", label: "Next week") { moveWeek(1) }
                             Spacer(minLength: 8)
-                            Button { model.selectDay(.now) } label: {
+                            Button { selectDay(.now) } label: {
                                 Text("Today").padding(.horizontal, 12).frame(height: 36)
                                     .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
                             }.buttonStyle(.plain)
@@ -49,7 +52,7 @@ struct CalendarWorkspace: View {
                                         }.buttonStyle(.plain).accessibilityLabel("Close date picker")
                                         DatePicker("Choose date", selection: Binding(
                                             get: { model.selectedDay },
-                                            set: { model.selectDay($0); showingDatePicker = false }
+                                            set: { selectDay($0); showingDatePicker = false }
                                         ), displayedComponents: .date).datePickerStyle(.graphical).labelsHidden()
                                     }.padding(14).frame(width: 290)
                                 }
@@ -57,18 +60,27 @@ struct CalendarWorkspace: View {
                         HStack(spacing: 7) {
                             ForEach(model.days, id: \.self) { day in
                                 let active = Calendar.current.isDate(day, inSameDayAs: model.selectedDay)
-                                Button { model.selectDay(day) } label: {
+                                Button { selectDay(day) } label: {
                                     VStack(spacing: 8) {
                                         Text(day.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 11))
                                         Text(day.formatted(.dateTime.day())).font(.system(size: 18, weight: .medium))
                                     }.frame(maxWidth: .infinity).frame(height: 64)
                                         .foregroundStyle(active ? TaskListModel.shared.accent.color : Palette.secondary)
-                                        .background(active ? TaskListModel.shared.accent.color.opacity(0.10) : Palette.card.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                                        .background {
+                                            RoundedRectangle(cornerRadius: 10).fill(Palette.card.opacity(0.4))
+                                            if active {
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(TaskListModel.shared.accent.color.opacity(0.10))
+                                                    .matchedGeometryEffect(id: "selectedDay", in: dayHighlight)
+                                            }
+                                        }
                                         .contentShape(Rectangle())
                                 }.buttonStyle(.plain).accessibilityLabel(day.formatted(date: .complete, time: .omitted))
                                     .accessibilityAddTraits(active ? .isSelected : [])
                             }
                         }
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: model.selectedDay)
+                        .modifier(BeaconSectionMotion(value: model.days.first, direction: navigationDirection))
                         Text(model.selectedDay.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                             .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
                         BeaconScrollView {
@@ -83,6 +95,7 @@ struct CalendarWorkspace: View {
                             }.frame(maxWidth: .infinity)
                                 .modifier(CalendarExpansionMotion(selection: selectedID))
                         }
+                        .modifier(BeaconSectionMotion(value: model.selectedDay, direction: navigationDirection))
                     }
                 }.modifier(BeaconSectionMotion(value: model.showingUpcoming))
             } else { CalendarConnection(model: model); Spacer() }
@@ -100,8 +113,16 @@ struct CalendarWorkspace: View {
                 .background(Palette.card, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
         }.buttonStyle(.plain).help(label).accessibilityLabel(label)
     }
+    private func selectDay(_ date: Date) {
+        guard !Calendar.current.isDate(date, inSameDayAs: model.selectedDay) else {
+            model.selectDay(date)
+            return
+        }
+        navigationDirection = date > model.selectedDay ? 1 : -1
+        model.selectDay(date)
+    }
     private func moveWeek(_ step: Int) {
-        model.selectDay(Calendar.current.date(byAdding: .weekOfYear, value: step, to: model.selectedDay)!)
+        selectDay(Calendar.current.date(byAdding: .weekOfYear, value: step, to: model.selectedDay)!)
     }
 }
 
