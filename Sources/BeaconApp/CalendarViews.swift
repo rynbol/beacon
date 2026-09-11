@@ -350,7 +350,7 @@ private struct CalendarEventDetails: View {
                         .accessibilityHidden(!showMeetingDetails)
                 }.clipped()
             }
-            CalendarPersonalNotes(event: event, store: model.personalNotes)
+            CalendarPersonalNotes(event: event, store: model.personalNotes, media: model.personalMedia)
                 .id(event.personalNotesKey)
                 .padding(.top, 6)
             ViewThatFits(in: .horizontal) {
@@ -407,6 +407,7 @@ private struct CalendarDetailHeading: View {
 private struct CalendarPersonalNotes: View {
     let event: CalendarEventSnapshot
     var store: CalendarPersonalNotesStore
+    var media: CalendarMediaStore
     @State private var editing = false
     private var key: String { event.personalNotesKey }
     private var text: String { store.text(for: key) }
@@ -455,6 +456,7 @@ private struct CalendarPersonalNotes: View {
                     CalendarEventNotes(text: text, showsHeading: false)
                 }
             }
+            CalendarPersonalMedia(store: media, noteKey: key)
             if let error = store.error(for: key) {
                 Text(error).font(.taskMeta).foregroundStyle(Palette.secondary)
                 Button("Retry saving") { store.set(text, for: key) }.buttonStyle(SwiftcnButtonStyle())

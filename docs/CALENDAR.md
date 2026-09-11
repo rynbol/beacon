@@ -62,3 +62,12 @@ The header chevron collapses the event; there is no duplicate visible X. Escape 
 Validation: 150 unit tests passed, including generated-block separation and preservation of ordinary/incomplete notes. Main and preview builds passed; sample UI checked meeting-details expansion/collapse and header dismissal.
 
 Event-card layout refinement: Join meeting anchors the footer left and Follow-up reminder anchors it right, with a vertical fallback for narrow cards. Personal notes sit above a subtle footer divider. Event notes, Meeting details, and Personal note share a 12-point semibold heading style and accessibility heading semantics. Main/preview builds passed; sample UI verified placement, personal-editor autofocus, and opening/dismissing a follow-up without saving. No persistence or provider parsing changes in this refinement.
+
+
+### Personal-note media
+
+A 64-point dashed square with a plus sits below Personal note. It opens an attached native file picker for multiple images or videos (100 MB maximum per file). Imported files are private copies in ~/Library/Application Support/Beacon/calendar-media, under a SHA-256 event-key folder with unique filenames. The original is untouched; preview uses its isolated application-support directory. Copying runs off the main thread and publishes the file by atomic rename after setting owner-only permissions. Failed imports display an error beside the attachment row.
+
+Thumbnails use Quick Look. Click to preview in Beacon; right-click offers Preview and Move to Trash. Trash affects only Beacon’s copy and remains recoverable through macOS Trash. Clearing note text does not remove media. No media is written to Calendar or attached to follow-up reminders.
+
+Validation: 152 unit tests pass, including copy persistence, duplicate filenames, event/preview isolation, permissions, invalid type and size rejection. Main and preview builds passed. Sample-image UI checks verified the picker, import, thumbnail layout, persistence after restart, Quick Look, context menu and trash removal. An initial standalone picker lost app focus; it now attaches to the host window and returns focus after import (verified). Video playback and every supported image format were not individually device-tested.

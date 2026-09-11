@@ -7,6 +7,7 @@ final class CalendarModel {
     static let shared = CalendarModel()
     let feed: CalendarFeed
     let personalNotes: CalendarPersonalNotesStore
+    let personalMedia: CalendarMediaStore
     private(set) var selectedDay = Calendar.current.startOfDay(for: Date())
     private(set) var hiddenIDs: Set<String>
     private(set) var colorOverrides: [String: String]
@@ -24,6 +25,9 @@ final class CalendarModel {
         let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview"
         isPreview = preview
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        personalMedia = CalendarMediaStore(root: support
+            .appendingPathComponent(preview ? "BeaconDesignPreview" : "Beacon", isDirectory: true)
+            .appendingPathComponent("calendar-media", isDirectory: true))
         personalNotes = CalendarPersonalNotesStore(url: support
             .appendingPathComponent(preview ? "BeaconDesignPreview" : "Beacon", isDirectory: true)
             .appendingPathComponent("calendar-personal-notes.json"))
