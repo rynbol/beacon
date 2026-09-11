@@ -447,3 +447,43 @@ struct BeaconSectionMotion<Value: Equatable>: ViewModifier {
         .clipped()
     }
 }
+
+
+/// Observe clicks without consuming them, so buttons still perform their action.
+struct BeaconClickAwayFocus: NSViewRepresentable {
+    func makeNSView(context: Context) -> FocusObserverView { FocusObserverView() }
+    func updateNSView(_ nsView: FocusObserverView, context: Context) {}
+    static func dismantleNSView(_ nsView: FocusObserverView, coordinator: ()) { nsView.stop() }
+
+    final class FocusObserverView: NSView {
+        private var monitor: Any?
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            stop()
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+                guard let window = self?.window, event.window === window,
+                      let editor = window.firstResponder as? NSTextView, editor.isEditable,
+                      let content = window.contentView else { return event }
+                let point = content.convert(event.locationInWindow, from: nil)
+                guard content.bounds.contains(point) else { return event }
+                var target = content.hitTest(point)
+                while let view = target {
+                    if let text = view as? NSTextView, text.isEditable { return event }
+                    if let field = view as? NSTextField, field.isEditable { return event }
+                    // Padding and scrollbars still belong to the text editor.
+                    if let scroll = view as? NSScrollView,
+                       let text = scroll.documentView as? NSTextView, text.isEditable { return event }
+                    target = view.superview
+                }
+                window.makeFirstResponder(nil)
+                return event
+            }
+        }
+        func stop() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+    }
+}

@@ -165,6 +165,7 @@ struct TaskListView: View {
             previous: { moveSection(by: -1) }, next: { moveSection(by: 1) }
         ))
         .frame(minWidth: 760, minHeight: 580)
+        .background(BeaconClickAwayFocus())
         .background {
             Button("Search reminders") { searchFocused = true }.keyboardShortcut("f").disabled(editing != nil || showingSettings || showingSchedule || model.notificationSnoozeTask != nil).hidden()
             Button("New reminder") { editing = .new(dictate: false, defaultDue: newReminderDue) }
