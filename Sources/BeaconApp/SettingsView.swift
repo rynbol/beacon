@@ -4,22 +4,29 @@ import BeaconKit
 struct SettingsView: View {
     var model: TaskListModel
     let dismiss: () -> Void
-    var initiallyCalendars = false
-    var initiallyNotifications = false
     private enum Section: String, CaseIterable { case appearance = "Appearance", calendars = "Calendars", alerts = "Notifications", snooze = "Snooze", help = "Help" }
     @Namespace private var sectionHighlight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var section: Section = .appearance
+    @State private var section: Section
     @State private var activeChoices: Set<UUID> = []
     private var choosingOption: Bool { !activeChoices.isEmpty }
+
+    init(model: TaskListModel, dismiss: @escaping () -> Void,
+         initiallyCalendars: Bool = false, initiallyNotifications: Bool = false) {
+        self.model = model
+        self.dismiss = dismiss
+        // Build the requested pane on the first frame, without an appearance
+        // pane replacement competing with the modal entrance.
+        _section = State(initialValue: initiallyCalendars ? .calendars : initiallyNotifications ? .alerts : .appearance)
+    }
 
     var body: some View {
         ZStack {
             Button(action: dismiss) {
-                Color.black.opacity(0.12).contentShape(Rectangle())
+                Color.clear.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("Dismiss settings").disabled(choosingOption)
             settingsCard
-                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(color: .black.opacity(0.14), radius: 24, y: 8)
                 .padding(24)
         }.environment(\.beaconChoicePresentation, $activeChoices)
@@ -28,7 +35,7 @@ struct SettingsView: View {
     private var settingsCard: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Settings").font(.system(size: 19, weight: .semibold))
+                Text("Settings").font(.system(size: 17, weight: .semibold))
                     .frame(height: 28)
                     .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 16)
                 ForEach(Section.allCases, id: \.self) { item in
@@ -38,47 +45,45 @@ struct SettingsView: View {
                             .padding(.horizontal, 10).frame(height: 34)
                             .foregroundStyle(section == item ? Palette.ink : Palette.secondary)
                             .background {
-                                if section == item {
-                                    RoundedRectangle(cornerRadius: 6).fill(Palette.card)
-                                        .matchedGeometryEffect(id: "selection", in: sectionHighlight)
-                                        .allowsHitTesting(false)
+                                ZStack {
+                                    if section == item {
+                                        RoundedRectangle(cornerRadius: 6).fill(Palette.card)
+                                            .matchedGeometryEffect(id: "selection", in: sectionHighlight)
+                                    }
                                 }
+                                .animation(reduceMotion ? nil : BeaconMotion.selection, value: section)
+                                .allowsHitTesting(false)
                             }
                             .contentShape(Rectangle())
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(BeaconControlButtonStyle())
                         .accessibilityAddTraits(section == item ? .isSelected : [])
                 }
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: section)
                 Spacer()
-            }.padding(12).frame(width: 154).background(Palette.band)
+            }.padding(12).frame(width: 148).background(Palette.band)
             Rectangle().fill(Palette.hairline).frame(width: 1)
             VStack(spacing: 0) {
                 HStack {
                     Text(section.rawValue).font(.system(size: 19, weight: .semibold))
-                        .modifier(BeaconSectionMotion(value: section))
                     Spacer()
                     Button(action: dismiss) {
                         Image(systemName: "xmark").font(.system(size: 12, weight: .medium))
                             .frame(width: 28, height: 28).contentShape(Rectangle())
-                    }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
+                    }.buttonStyle(BeaconControlButtonStyle()).keyboardShortcut(.cancelAction)
                         .foregroundStyle(Palette.secondary)
                         .accessibilityLabel("Close settings").help("Close settings · Esc").disabled(choosingOption)
                 }.padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 16)
                 BeaconScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 26) {
                         switch section {
                         case .appearance:
-                            ThemePicker()
-                            accentSection
-                            Divider()
-                            groupingSection
-                            UrgencyColorSettings()
+                            appearanceSection
                         case .help:
                             siriSection
                             aboutSection
                         case .calendars:
-                            UpcomingKeywordSettings(model: .shared)
                             calendarSection
+                            BeaconSettingsDivider()
+                            UpcomingKeywordSettings(model: .shared)
                         case .alerts:
                             notificationSection
                             quietHoursSection
@@ -88,25 +93,27 @@ struct SettingsView: View {
                     }.padding(.horizontal, 24).padding(.bottom, 24)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }.scrollContentBackground(.hidden).id(section)
-                    .modifier(BeaconSectionMotion(value: section))
+                    .modifier(BeaconSectionMotion(value: section, axis: .vertical))
             }.frame(maxWidth: .infinity).background(Palette.washTop)
         }
         .foregroundStyle(Palette.ink)
         .frame(width: 700).frame(maxHeight: 600)
-        .onAppear {
-            if initiallyCalendars { section = .calendars }
-            else if initiallyNotifications { section = .alerts }
+    }
+
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ThemePicker().padding(.bottom, 10)
+            BeaconSettingsDivider()
+            accentSection
+            BeaconSettingsDivider()
+            groupingSection
+            BeaconSettingsDivider()
+            UrgencyColorSettings().padding(.top, 12)
         }
     }
 
-    private func label(_ text: String) -> some View {
-        Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.ink)
-    }
-
     private var accentSection: some View {
-        HStack {
-            Text("Highlight").font(.system(size: 13, weight: .semibold))
-            Spacer()
+        BeaconSettingsRow(title: "Highlight") {
             HStack(spacing: 10) {
                 ForEach(Accent.allCases) { option in
                     Button { model.setAccent(option) } label: {
@@ -114,7 +121,7 @@ struct SettingsView: View {
                             .overlay {
                                 if model.accent == option { Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.onAccent) }
                             }
-                    }.buttonStyle(.plain).help(option.title).accessibilityLabel("\(option.title) highlight")
+                    }.buttonStyle(BeaconControlButtonStyle()).help(option.title).accessibilityLabel("\(option.title) highlight")
                         .accessibilityAddTraits(model.accent == option ? .isSelected : [])
                 }
             }
@@ -122,67 +129,36 @@ struct SettingsView: View {
     }
 
     private var notificationSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            label("Alerts")
-            Card {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Remind me").font(.rowLabel).foregroundStyle(Palette.ink)
-                        Text(alertsDetail).font(.taskMeta).foregroundStyle(Palette.secondary)
-                    }
-                    Spacer()
-                    Toggle("Enable Beacon notifications", isOn: Binding(
-                        get: { model.alertsEnabled },
-                        set: { on in Task { await model.setAlertsEnabled(on) } }
-                    ))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                }
-                .padding(.horizontal, Metrics.gutter)
-                .frame(minHeight: 54)
-
-                if model.alertsEnabled, model.authorization != .granted {
-                    InsetDivider()
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(model.authorization == .denied
-                                 ? "macOS is blocking Beacon's alerts"
-                                 : "Beacon has not asked yet")
-                                .font(.rowLabel).foregroundStyle(Palette.ink)
-                            Text(model.authorization == .denied
-                                 ? "Turn Beacon on in System Settings > Notifications."
-                                 : "Allow alerts so Beacon can remind you.")
-                                .font(.taskMeta).foregroundStyle(Palette.secondary)
-                        }
-                        Spacer()
-                        Chip(label: model.authorization == .denied ? "Open" : "Allow",
-                             isSelected: true, accent: model.accent.color) {
-                            if model.authorization == .denied {
-                                let path = "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
-                                if let url = URL(string: path) { NSWorkspace.shared.open(url) }
-                            } else {
-                                Task { await model.enableNotifications() }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, Metrics.gutter)
-                    .frame(minHeight: 54)
-                }
-
-                InsetDivider()
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Hearing duplicate alerts?")
-                            .font(.rowLabel).foregroundStyle(Palette.ink)
-                        Text("If you hear duplicate alerts, adjust Apple Reminders in System Settings.")
-                            .font(.taskMeta).foregroundStyle(Palette.secondary)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, Metrics.gutter)
-                .frame(minHeight: 54)
+        BeaconSettingsGroup(title: "Reminder alerts") {
+            BeaconSettingsRow(title: "Remind me", detail: alertsDetail) {
+                Toggle("Enable Beacon notifications", isOn: Binding(
+                    get: { model.alertsEnabled },
+                    set: { on in Task { await model.setAlertsEnabled(on) } }
+                ))
+                .labelsHidden().toggleStyle(.switch)
             }
+            if model.alertsEnabled, model.authorization != .granted {
+                BeaconSettingsDivider()
+                BeaconSettingsRow(title: "macOS permission", detail: model.authorization == .denied
+                                  ? "Turn Beacon on in System Settings → Notifications."
+                                  : "Allow notifications to receive reminder alerts.") {
+                    Chip(label: model.authorization == .denied ? "Open" : "Allow",
+                         isSelected: true, accent: model.accent.color) {
+                        if model.authorization == .denied {
+                            let path = "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+                            if let url = URL(string: path) { NSWorkspace.shared.open(url) }
+                        } else {
+                            Task { await model.enableNotifications() }
+                        }
+                    }
+                }
+            }
+            DisclosureGroup("Duplicate alerts") {
+                Text("If Apple Reminders also sends alerts, adjust its notifications in System Settings.")
+                    .font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                    .fixedSize(horizontal: false, vertical: true).padding(.top, 6)
+            }
+            .font(.system(size: 12)).foregroundStyle(Palette.secondary).padding(.top, 12)
         }
     }
 
@@ -198,49 +174,37 @@ struct SettingsView: View {
     }
 
     private var groupingSection: some View {
-        HStack {
-            Text("Group reminders").font(.system(size: 13, weight: .semibold))
-            Spacer()
+        BeaconSettingsRow(title: "Group reminders") {
             BeaconChoicePicker(label: "Group reminders",
                 selection: Binding(get: { model.grouping }, set: { model.setGrouping($0) }),
                 options: Grouping.allCases.map { BeaconChoice(value: $0, title: $0.title) })
-        }.padding(.vertical, 4)
+        }
     }
 
     private var ladderSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            label("Snooze intervals")
-            Card {
-                ForEach(Array(model.settings.ladder.enumerated()), id: \.offset) { index, interval in
+        BeaconSettingsGroup(title: "Snooze intervals",
+                            detail: "Each snooze moves to the next interval. The final interval repeats.") {
+            ForEach(Array(model.settings.ladder.enumerated()), id: \.offset) { index, interval in
+                BeaconSettingsRow(title: "Snooze \(index + 1)") {
                     HStack {
-                        Text("Snooze \(index + 1)")
-                            .font(.rowLabel).foregroundStyle(Palette.ink)
-                        Spacer()
                         Text(IntervalText.short(interval))
-                            .font(.rowLabel).monospacedDigit()
+                            .font(.system(size: 13)).monospacedDigit()
                             .foregroundStyle(Palette.secondary)
+                            .frame(minWidth: 70, alignment: .trailing)
                         BeaconStepper(label: "Snooze \(index + 1) interval",
                             decrease: { model.adjustLadder(at: index, by: -1) },
                             increase: { model.adjustLadder(at: index, by: 1) })
                     }
-                    .padding(.horizontal, Metrics.gutter)
-                    .frame(height: 42)
-
-                    if index < model.settings.ladder.count - 1 { InsetDivider() }
                 }
+                if index < model.settings.ladder.count - 1 { BeaconSettingsDivider() }
             }
-            Text("Each snooze moves a task one step down this list. The last step repeats.")
-                .font(.taskMeta).foregroundStyle(Palette.tertiary)
         }
     }
 
     private var quietHoursSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            label("Quiet hours")
-            Card {
-                HStack {
-                    Text("From").font(.rowLabel).foregroundStyle(Palette.ink)
-                    Spacer()
+        BeaconSettingsGroup(title: "Quiet hours",
+                            detail: "Automatic alerts wait until quiet hours end. Manual snoozes keep their chosen time.") {
+                BeaconSettingsRow(title: "From") {
                     hourPicker(
                         label: "Quiet hours start", value: Binding(
                             get: { model.settings.quietStartHour },
@@ -248,14 +212,8 @@ struct SettingsView: View {
                         )
                     )
                 }
-                .padding(.horizontal, Metrics.gutter)
-                .frame(height: 46)
-
-                InsetDivider()
-
-                HStack {
-                    Text("Until").font(.rowLabel).foregroundStyle(Palette.ink)
-                    Spacer()
+                BeaconSettingsDivider()
+                BeaconSettingsRow(title: "Until") {
                     hourPicker(
                         label: "Quiet hours end", value: Binding(
                             get: { model.settings.quietEndHour },
@@ -263,11 +221,6 @@ struct SettingsView: View {
                         )
                     )
                 }
-                .padding(.horizontal, Metrics.gutter)
-                .frame(height: 46)
-            }
-            Text("Automatic alerts wait until quiet hours end. Manual snoozes keep their chosen time.")
-                .font(.taskMeta).foregroundStyle(Palette.tertiary)
         }
     }
 
@@ -277,58 +230,62 @@ struct SettingsView: View {
     }
 
     private var siriSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            label("Siri & dictation")
-            Card {
+        VStack(alignment: .leading, spacing: 26) {
+            BeaconSettingsGroup(title: "Siri") {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Say “Add a reminder in Beacon,” then tell Siri what to remember.")
                     Text("Say “Remind me to…” as usual. No date means Someday; “today,” “tomorrow,” or a time keeps that schedule.")
-                    Text("Dictate in Beacon: ⌘⇧M. The Mac’s ⌘M shortcut still minimizes the window.")
                     Button("Open Shortcuts") {
                         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.shortcuts") {
                             NSWorkspace.shared.open(url)
                         }
                     }.buttonStyle(.link)
-                }.font(.taskMeta).foregroundStyle(Palette.secondary).padding(Metrics.gutter)
+                }.font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            BeaconSettingsGroup(title: "Dictation") {
+                BeaconSettingsRow(title: "Dictate a reminder", detail: "Use the microphone in the reminder title field.") {
+                    Text("⌘⇧M").font(.system(size: 12, design: .monospaced)).foregroundStyle(Palette.secondary)
+                }
             }
         }
     }
 
     private var calendarSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            label("Calendars")
-            Card {
-                VStack(alignment: .leading, spacing: 12) {
+        BeaconSettingsGroup(title: "Connected calendars") {
+            VStack(alignment: .leading, spacing: 12) {
+                if CalendarModel.shared.feed.access != .granted || CalendarModel.shared.feed.error != nil {
                     CalendarConnection(model: .shared)
-                    if CalendarModel.shared.feed.access == .granted {
-                        CalendarFilters(model: .shared)
+                }
+                if CalendarModel.shared.feed.access == .granted {
+                    CalendarFilters(model: .shared)
+                    if CalendarModel.shared.feed.calendars.isEmpty {
+                        Text("No calendars available on this Mac.")
+                            .font(.system(size: 12)).foregroundStyle(Palette.secondary)
                     }
-                    DisclosureGroup("Accounts & sync") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Add Google in Apple Calendar → Add Account. Beacon reads the calendars synced to this Mac. Press ⌘R to refresh; remote changes appear as macOS syncs them.")
-                            Text("Colors apply only to Beacon. Event alerts stay in Calendar.")
-                            Button("Open Apple Calendar") {
-                                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") { NSWorkspace.shared.open(url) }
-                            }.buttonStyle(.link)
-                        }.font(.taskMeta).foregroundStyle(Palette.secondary).padding(.top, 8)
-                    }.font(.taskMeta).foregroundStyle(Palette.secondary)
-                }.padding(Metrics.gutter)
+                }
+                DisclosureGroup("Accounts & sync") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Beacon reads the calendars connected to this Mac. Add Google in Apple Calendar → Add Account.")
+                        Text("Press ⌘R to refresh. Remote changes appear as macOS syncs them. Colors apply only to Beacon; event alerts stay in Calendar.")
+                        Button("Open Apple Calendar") {
+                            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") { NSWorkspace.shared.open(url) }
+                        }.buttonStyle(.link)
+                    }.font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                        .fixedSize(horizontal: false, vertical: true).padding(.top, 8)
+                }.font(.system(size: 12)).foregroundStyle(Palette.secondary)
             }
         }
     }
 
     private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            label("About")
-            Card {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Your tasks live in Apple Reminders. Beacon stores your preferences, snooze timing, and muted reminders locally.")
-                    Text("Delete Beacon and every task is still there.")
-                }
-                .font(.taskMeta)
-                .foregroundStyle(Palette.secondary)
-                .padding(Metrics.gutter)
+        BeaconSettingsGroup(title: "Your data") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Your tasks live in Apple Reminders. Beacon stores your preferences, snooze timing, and muted reminders locally.")
+                Text("Delete Beacon and every task is still there.")
             }
+            .font(.system(size: 12)).foregroundStyle(Palette.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

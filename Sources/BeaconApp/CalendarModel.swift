@@ -22,7 +22,7 @@ final class CalendarModel {
     let isPreview: Bool
 
     init() {
-        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview"
+        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.preview"
         isPreview = preview
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         personalMedia = CalendarMediaStore(root: support
@@ -31,7 +31,7 @@ final class CalendarModel {
         personalNotes = CalendarPersonalNotesStore(url: support
             .appendingPathComponent(preview ? "BeaconDesignPreview" : "Beacon", isDirectory: true)
             .appendingPathComponent("calendar-personal-notes.json"))
-        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
+        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.design-preview")! : .standard
         includeKeywords = UpcomingEventFilter.labels(defaults.stringArray(forKey: "upcomingIncludeKeywords") ?? [])
         excludeKeywords = UpcomingEventFilter.labels(defaults.stringArray(forKey: "upcomingExcludeKeywords") ?? [])
         manuallyIncludedIDs = Set(defaults.stringArray(forKey: "upcomingManualEventIDs") ?? [])
@@ -142,9 +142,9 @@ private actor PreviewCalendarReader: CalendarReading {
         let today = calendar.startOfDay(for: .now)
         let work = EventCalendarSnapshot(id: "preview-work", title: "Work", source: "Google", tint: .ocean)
         let personal = EventCalendarSnapshot(id: "preview-personal", title: "Personal", source: "iCloud", tint: CalendarTint(0.65, 0.33, 0.17))
-        let events = (0..<7).map { offset in
+        var events = (0..<7).map { offset in
             let day = calendar.date(byAdding: .day, value: offset, to: today)!
-            let start = calendar.date(bySettingHour: offset == 0 ? 23 : 10, minute: 30, second: 0, of: day)!
+            let start = calendar.date(bySettingHour: offset == 0 ? 11 : 10, minute: offset == 0 ? 0 : 30, second: 0, of: day)!
             return CalendarEventSnapshot(identifier: "sample-\(offset)", calendarID: offset % 2 == 0 ? work.id : personal.id,
                 title: ["Design review", "Dentist", "Weekly planning", "Lunch with Maya", "Project demo", "Coffee with Sam", "Sunday walk"][offset],
                 start: offset == 6 ? day : start,
@@ -153,6 +153,17 @@ private actor PreviewCalendarReader: CalendarReading {
                 location: offset == 4 ? "https://sample.zoom.com/j/123?pwd=sample" : offset % 2 == 0 ? "Google Meet" : "Downtown",
                 notes: offset == 4 ? "<p>Demo &amp; discussion</p><br>Agenda<ul><li><p>Review the launch</p></li><li>Agree on next steps</li></ul><a href='https://example.com/reschedule'>Reschedule</a>" : offset == 0 ? "Review the latest screens and capture the decisions.\n\nAgenda\n• Walk through the reminder flow\n• Check the calendar layouts\n• Review keyboard access\n• Agree on follow-ups\n\nBring any open questions. These are sample notes for testing the expanded event layout.\n-:~:-:~:-:~:-:~:-:~:-:~:\nJoin with Google Meet: https://meet.google.com/example-preview\nDial-in information supplied by the organizer.\n-:~:-:~:-:~:-:~:-:~:-:~:" : "",
                 meetingURL: offset == 4 ? CalendarEventSnapshot.meetingLink(in: "https://sample.zoom.com/j/123?pwd=sample") : offset % 2 == 0 ? URL(string: "https://meet.google.com/example-preview") : nil)
+        }
+        // A mixed day makes layout and direct event-switch testing useful.
+        // These fixtures are confined to the preview reader.
+        for (id, title, hour, minute, note) in [
+            ("coffee", "Coffee with Sam", 9, 0, "Our usual spot on the corner."),
+            ("walk", "Evening walk", 17, 30, "A little time away from the screen.")
+        ] {
+            let start = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: today)!
+            events.append(CalendarEventSnapshot(identifier: "sample-\(id)", calendarID: personal.id,
+                title: title, start: start, end: start.addingTimeInterval(1800),
+                location: "", notes: note))
         }
         return .loaded(calendars: [work, personal], events: events.filter { event in ranges.contains { event.overlaps($0) } })
     }

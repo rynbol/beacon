@@ -49,8 +49,8 @@ final class AppearanceStore {
         didSet { defaults.set(theme.rawValue, forKey: "appearanceTheme") }
     }
     private init() {
-        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview"
-        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
+        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.preview"
+        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.design-preview")! : .standard
         theme = AppearanceTheme(rawValue: defaults.string(forKey: "appearanceTheme") ?? "") ?? .paper
     }
 }
@@ -80,11 +80,14 @@ extension Color {
 }
 
 enum Metrics {
+    /// Includes the page's horizontal gutters; keeps actions near their text.
+    static let workspaceWidth: CGFloat = 960
+    static let notesWidth: CGFloat = 660
     static let gutter: CGFloat = 16
     static let formIcon: CGFloat = 20
     static let formSpacing: CGFloat = 10
     static let formTextInset: CGFloat = gutter + formIcon + formSpacing
-    static let rowHeight: CGFloat = 72
+    static let rowHeight: CGFloat = 68
     static let circle: CGFloat = 21
     static let radius: CGFloat = 10
     static let chipRadius: CGFloat = 7
@@ -93,9 +96,9 @@ enum Metrics {
 }
 
 extension Font {
-    static let taskTitle = Font.system(size: 15, weight: .regular)
-    static let taskMeta = Font.system(size: 12.5, weight: .regular)
-    static let sectionHeader = Font.system(size: 14, weight: .medium)
+    static let taskTitle = Font.system(size: 14, weight: .regular)
+    static let taskMeta = Font.system(size: 12, weight: .regular)
+    static let sectionHeader = Font.system(size: 13, weight: .semibold)
     static let fieldLabel = Font.system(size: 13, weight: .regular)
     static let captureField = Font.system(size: 16, weight: .regular)
     static let chip = Font.system(size: 13.5, weight: .regular)
@@ -163,7 +166,7 @@ struct WashButton: View {
                 .frame(width: 30, height: 30)
                 .background(Circle().fill(Palette.card.opacity(0.75)))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BeaconControlButtonStyle())
     }
 }
 
@@ -236,8 +239,8 @@ final class UrgencyColors {
     private var overrides: [String: [Double]]
 
     private init() {
-        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview"
-        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
+        let preview = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.preview"
+        defaults = preview ? UserDefaults(suiteName: "dev.dylan.beacon.design-preview")! : .standard
         overrides = defaults.dictionary(forKey: "urgencyColors") as? [String: [Double]] ?? [:]
     }
     func color(for urgency: Urgency) -> Color {
@@ -278,7 +281,7 @@ struct UrgencyColorSettings: View {
             HStack {
                 Text("Urgency").font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Button("Reset") { colors.reset() }.buttonStyle(.plain)
+                Button("Reset") { colors.reset() }.buttonStyle(BeaconControlButtonStyle())
                     .font(.system(size: 11)).foregroundStyle(Palette.secondary)
                     .accessibilityLabel("Reset urgency colors")
             }
@@ -321,7 +324,7 @@ struct ThemePicker: View {
                                 if appearance.theme == theme { Image(systemName: "checkmark").font(.system(size: 9, weight: .semibold)) }
                             }.font(.system(size: 11)).foregroundStyle(Palette.ink)
                         }.frame(maxWidth: .infinity).contentShape(Rectangle())
-                    }.buttonStyle(.plain).frame(maxWidth: .infinity).accessibilityLabel("\(theme.title) theme")
+                    }.buttonStyle(BeaconControlButtonStyle()).frame(maxWidth: .infinity).accessibilityLabel("\(theme.title) theme")
                         .accessibilityAddTraits(appearance.theme == theme ? .isSelected : [])
                 }
             }
@@ -351,6 +354,7 @@ struct BeaconScrollView<Content: View>: View {
 struct BeaconNotesEditor: View {
     @Binding var text: String
     var autofocus = false
+    var isActive = true
     var editorFont: Font = .taskTitle
     var editorHeight: CGFloat = 108
     var placeholder = "Add a detail, a link, or a little context…"
@@ -365,7 +369,10 @@ struct BeaconNotesEditor: View {
             .scrollContentBackground(.hidden)
             .focused($focused)
             .introspect(.textEditor, on: .macOS(.v26)) { editor in
-                submitKeys.install(on: editor, submit: onSubmit)
+                submitKeys.install(on: editor, submit: isActive ? onSubmit : nil)
+                if !isActive, editor.window?.firstResponder === editor {
+                    editor.window?.makeFirstResponder(nil)
+                }
                 editor.isRichText = false
                 editor.allowsUndo = true
                 editor.drawsBackground = false
@@ -388,11 +395,16 @@ struct BeaconNotesEditor: View {
                 }
             }
             .accessibilityLabel("Notes")
+            .allowsHitTesting(isActive)
+            .accessibilityHidden(!isActive)
+            .onChange(of: isActive) { _, active in
+                focused = active && autofocus
+            }
             .onDisappear { submitKeys.remove() }
             .task {
-                guard autofocus else { return }
+                guard autofocus, isActive else { return }
                 await Task.yield()
-                focused = true
+                if isActive { focused = true }
             }
     }
 }
@@ -430,20 +442,111 @@ private final class NoteSubmitKeys {
     }
 }
 
-/// A short entrance when navigation changes, without replacing the view's
-/// identity or animating subsequent data refreshes and edits.
+// MARK: - Motion
+
+/// Motion roles, rather than one spring applied to the entire view tree.
+/// Text metrics and native editor geometry never inherit these animations.
+enum BeaconMotion {
+    static let feedback = Animation.easeOut(duration: 0.12)
+    static let selection = Animation.smooth(duration: 0.20, extraBounce: 0)
+    static let navigation = Animation.easeOut(duration: 0.20)
+    static let disclosure = Animation.smooth(duration: 0.30, extraBounce: 0)
+    static let presentation = Animation.easeOut(duration: 0.22)
+    static let removal = Animation.easeOut(duration: 0.18)
+    static let list = Animation.smooth(duration: 0.24, extraBounce: 0)
+}
+
+/// Synchronous reveal geometry. The first child always receives its natural
+/// height; an optional second (hidden) child supplies the collapsed height.
+/// Only the viewport changes, so glyph layout cannot chase animated proposals.
+struct BeaconRevealLayout: Layout {
+    var progress: CGFloat
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let full = subviews.first else { return .zero }
+        let natural = full.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
+        let collapsed = subviews.count > 1
+            ? subviews[1].sizeThatFits(ProposedViewSize(width: proposal.width, height: nil)).height : 0
+        let lower = min(natural.height, max(0, collapsed))
+        let fraction = min(1, max(0, progress))
+        return CGSize(width: natural.width, height: lower + (natural.height - lower) * fraction)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews {
+            let natural = subview.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+            subview.place(at: bounds.origin, anchor: .topLeading,
+                          proposal: ProposedViewSize(width: bounds.width, height: natural.height))
+        }
+    }
+}
+
+struct BeaconDisclosure<Content: View>: View {
+    let isExpanded: Bool
+    @ViewBuilder var content: () -> Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        BeaconRevealLayout(progress: isExpanded ? 1 : 0) {
+            content()
+                .fixedSize(horizontal: false, vertical: true)
+                .geometryGroup()
+                // Stop the reveal's transaction here. A nested control can
+                // still opt into its own scoped animation when it changes.
+                .transaction { $0.animation = nil }
+        }
+        .animation(reduceMotion ? nil : BeaconMotion.disclosure, value: isExpanded)
+        .clipped()
+        .contentShape(Rectangle())
+        .allowsHitTesting(isExpanded)
+        .accessibilityElement(children: isExpanded ? .contain : .ignore)
+        .accessibilityHidden(!isExpanded)
+    }
+}
+
+struct BeaconModalSurface: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content
+            .geometryGroup()
+            .transaction { $0.animation = nil }
+            .transition(.asymmetric(
+                insertion: (reduceMotion ? AnyTransition.opacity : .offset(y: 10).combined(with: .opacity))
+                    .animation(BeaconMotion.presentation),
+                removal: (reduceMotion ? AnyTransition.opacity : .offset(y: 6).combined(with: .opacity))
+                    .animation(BeaconMotion.removal)
+            ))
+    }
+}
+
+struct BeaconModalBackdrop: ViewModifier {
+    func body(content: Content) -> some View {
+        content.transition(.opacity.animation(BeaconMotion.removal))
+    }
+}
+
+/// A short, visual-only entrance. The phase affects this container, while the
+/// content retains its identity and lays out in a nonanimated transaction.
+/// Feed refreshes and edits do not change the trigger, so they never replay it.
 struct BeaconSectionMotion<Value: Equatable>: ViewModifier {
     let value: Value
     var direction: CGFloat = 1
+    var axis: Axis = .horizontal
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        content.phaseAnimator([false, true], trigger: value) { view, entering in
+        content.geometryGroup().transaction { $0.animation = nil }
+            .phaseAnimator([false, true], trigger: value) { view, entering in
             view
-                .offset(x: !reduceMotion && entering ? 16 * direction : 0)
+                .offset(x: !reduceMotion && entering && axis == .horizontal ? 10 * direction : 0,
+                        y: !reduceMotion && entering && axis == .vertical ? 8 * direction : 0)
                 .opacity(!reduceMotion && entering ? 0 : 1)
         } animation: { entering in
-            reduceMotion || entering ? nil : .easeOut(duration: 0.24)
+            reduceMotion || entering ? nil : BeaconMotion.navigation
         }
         .clipped()
     }

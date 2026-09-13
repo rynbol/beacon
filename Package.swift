@@ -22,5 +22,6 @@ let package = Package(
         // Prints one worked plan, for eyeballing behaviour by hand.
         .executableTarget(name: "BeaconDemo", dependencies: ["BeaconKit"]),
         .testTarget(name: "BeaconKitTests", dependencies: ["BeaconKit"]),
+        .testTarget(name: "BeaconAppTests", dependencies: ["BeaconApp"]),
     ]
 )

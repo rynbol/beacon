@@ -86,7 +86,7 @@ struct TaskEditor: View {
     var body: some View {
         ZStack {
             Button(action: dismiss) {
-                Color.black.opacity(0.12).contentShape(Rectangle())
+                Color.clear.contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(saving || showingDatePicker || choosingOption)
@@ -105,23 +105,34 @@ struct TaskEditor: View {
             VStack(spacing: 0) {
                 header
                 BeaconScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 24) {
                         if let error = model.writeError {
-                            Text(error).font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                            Text(error).font(.system(size: 13)).foregroundStyle(Palette.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         titleField
-                        chipRow
+                        VStack(alignment: .leading, spacing: 10) {
+                            sectionLabel("When")
+                            chipRow
+                            dateSummary
+                        }
                         notesField
-                        attachments
-                        if let recurrence { RepeatCard(recurrence: bindingTo(recurrence), due: due, accent: accent, remove: { self.recurrence = nil }) }
+                        VStack(alignment: .leading, spacing: 10) {
+                            sectionLabel("Details")
+                            attachments
+                            if let recurrence {
+                                RepeatCard(recurrence: bindingTo(recurrence), due: due, accent: accent,
+                                           remove: { self.recurrence = nil })
+                            }
+                        }
                         if !isNew { deleteButton }
                     }
-                    .padding(Metrics.gutter)
+                    .padding(24)
                 }
                 .scrollContentBackground(.hidden)
             }
         }
-        .frame(width: 520)
+        .frame(width: 540)
         .frame(maxHeight: recurrence == nil ? 580 : 670)
         .onAppear {
             load()
@@ -160,26 +171,35 @@ struct TaskEditor: View {
                     Image(systemName: "xmark").font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Palette.ink).frame(width: 32, height: 32)
                         .background(Circle().fill(Palette.card.opacity(0.8)))
-                }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
-                    .accessibilityLabel("Close reminder").disabled(saving || choosingOption)
+                }.buttonStyle(BeaconControlButtonStyle()).keyboardShortcut(.cancelAction)
+                    .accessibilityLabel("Close reminder").disabled(saving || showingDatePicker || choosingOption)
             }
             .overlay(alignment: .trailing) {
                 Button(saving ? "Saving…" : "Save", action: save)
                     .buttonStyle(SwiftcnButtonStyle(variant: .primary, accent: accent))
                     .disabled(!canSave || choosingOption).keyboardShortcut(.defaultAction)
             }
-            .padding(.horizontal, Metrics.gutter).padding(.vertical, 12)
+            .padding(.horizontal, 24).padding(.vertical, 16)
+            .background(Palette.card.opacity(0.35))
+    }
+
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.ink)
     }
 
     private var titleField: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Title").font(.fieldLabel).foregroundStyle(Palette.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Title")
             HStack(spacing: 10) {
                 TextField("What would you like to remember?", text: $title, axis: .vertical)
                     .font(.captureField)
                     .textFieldStyle(.plain)
                     .lineLimit(1...3)
                     .focused($titleFocused)
+                    .task {
+                        await Task.yield()
+                        if !Task.isCancelled { titleFocused = true }
+                    }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
                     .modifier(SwiftcnInputSurface(focused: titleFocused))
@@ -189,28 +209,33 @@ struct TaskEditor: View {
             if dictationUnavailable {
                 Text(SystemDictation.hint).font(.taskMeta).foregroundStyle(Palette.secondary)
             }
-            if let due {
-                HStack(spacing: 5) {
-                    Image(systemName: "clock").font(.system(size: 10))
-                    Text(Sections.relativeText(
-                        for: TaskSnapshot(key: "", title: "", due: due, hasTimeOfDay: true),
-                        now: .now, calendar: .current
-                    ))
-                    .monospacedDigit()
-                    Button("Clear") { self.due = nil; chip = nil }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Palette.tertiary)
-                }
-                .font(.taskMeta)
-                .foregroundStyle(Palette.secondary)
-            } else if isNew, !chipWasChosen, let parsedDue = Capture.parse(title).due {
-                Text("Detected: \(parsedDue.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.taskMeta).foregroundStyle(accent)
-            } else {
-                Text("No date set · Someday. Choose a date when you want a reminder.")
-                    .font(.taskMeta)
+        }
+    }
+
+    @ViewBuilder
+    private var dateSummary: some View {
+        if let due {
+            HStack(spacing: 5) {
+                Image(systemName: "clock").font(.system(size: 12))
+                Text(Sections.relativeText(
+                    for: TaskSnapshot(key: "", title: "", due: due, hasTimeOfDay: true),
+                    now: .now, calendar: .current
+                ))
+                .monospacedDigit()
+                Button("Clear") { self.due = nil; chip = nil }
+                    .buttonStyle(.plain)
                     .foregroundStyle(Palette.tertiary)
+                    .padding(.leading, 5)
             }
+            .font(.taskMeta)
+            .foregroundStyle(Palette.secondary)
+        } else if isNew, !chipWasChosen, let parsedDue = Capture.parse(title).due {
+            Text("Detected: \(parsedDue.formatted(date: .abbreviated, time: .shortened))")
+                .font(.taskMeta).foregroundStyle(accent)
+        } else {
+            Text("No date set · Someday. Choose a date when you want a reminder.")
+                .font(.taskMeta)
+                .foregroundStyle(Palette.tertiary)
         }
     }
 
@@ -224,7 +249,7 @@ struct TaskEditor: View {
                 .frame(width: 38, height: 38)
                 .background(Circle().fill(Palette.card))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BeaconControlButtonStyle())
         .disabled(dictationStarting)
         .keyboardShortcut("m", modifiers: [.command, .shift])
         .help("Dictate into the title · ⌘⇧M")
@@ -252,7 +277,7 @@ struct TaskEditor: View {
 
     private var chipRow: some View {
         let prominent: [DueChip] = recurrence == nil ? [.today, .tomorrow, .someday] : [.today]
-        return HStack(spacing: 8) {
+        return FlowRow(spacing: 8) {
             ForEach(prominent) { option in
                 Chip(label: option.label, isSelected: chip == option, accent: accent) { choose(option) }
             }
@@ -272,9 +297,9 @@ struct TaskEditor: View {
     }
 
     private var notesField: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Notes").font(.fieldLabel).foregroundStyle(Palette.secondary)
-            BeaconNotesEditor(text: $notes)
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Notes")
+            BeaconNotesEditor(text: $notes, editorFont: .system(size: 14), editorHeight: 120)
         }
     }
 
@@ -284,7 +309,7 @@ struct TaskEditor: View {
                 Text("This reminder uses a custom Apple repeat rule. Beacon preserves it; edit the rule in Apple Reminders.")
                     .font(.taskMeta).foregroundStyle(Palette.secondary).padding(16)
             } else if recurrence == nil {
-                editorRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Add Repeat") {
+                editorRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Add repeat") {
                     recurrence = Recurrence(
                         frequency: .weekly,
                         daysOfWeek: [Calendar.current.component(.weekday, from: due ?? .now)]
@@ -295,8 +320,9 @@ struct TaskEditor: View {
             }
             HStack(spacing: Metrics.formSpacing) {
                 Image(systemName: urgency == .none ? "circle.slash" : "flag")
+                    .font(.system(size: 14))
                     .foregroundStyle(UrgencyColors.shared.color(for: urgency)).frame(width: Metrics.formIcon)
-                Text("Urgency").font(.rowLabel)
+                Text("Urgency").font(.system(size: 14))
                 Spacer()
                 BeaconChoicePicker(label: "Urgency", selection: $urgency,
                     options: Urgency.allCases.map {
@@ -304,7 +330,7 @@ struct TaskEditor: View {
                                      symbol: $0 == .none ? "circle.slash" : "flag",
                                      color: UrgencyColors.shared.color(for: $0))
                     })
-            }.padding(.horizontal, Metrics.gutter).frame(height: 46)
+            }.padding(.horizontal, Metrics.gutter).frame(minHeight: 48)
             if model.lists.count > 1 {
                 InsetDivider(leading: Metrics.formTextInset)
                 HStack(spacing: Metrics.formSpacing) {
@@ -312,13 +338,13 @@ struct TaskEditor: View {
                         .font(.system(size: 14))
                         .foregroundStyle(accent)
                         .frame(width: Metrics.formIcon)
-                    Text("List").font(.rowLabel)
+                    Text("List").font(.system(size: 14))
                     Spacer()
                     BeaconChoicePicker(label: "Reminder list", selection: $listID,
                         options: model.lists.map { BeaconChoice(value: Optional($0.id), title: $0.title) })
                 }
                 .padding(.horizontal, Metrics.gutter)
-                .frame(height: 46)
+                .frame(minHeight: 48)
             }
         }
     }
@@ -330,18 +356,18 @@ struct TaskEditor: View {
                     .font(.system(size: 14))
                     .foregroundStyle(accent)
                     .frame(width: Metrics.formIcon)
-                Text(label).font(.rowLabel).foregroundStyle(accent)
+                Text(label).font(.system(size: 14)).foregroundStyle(Palette.ink)
                 Spacer()
             }
             .padding(.horizontal, Metrics.gutter)
-            .frame(height: 46)
+            .frame(minHeight: 48)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BeaconControlButtonStyle())
     }
 
     private var deleteButton: some View {
-        Button("Delete reminder") {
+        Button {
             if case let .existing(task) = target {
                 Task {
                     saving = true
@@ -350,15 +376,14 @@ struct TaskEditor: View {
                     if model.writeError == nil { dismiss() }
                 }
             }
+        } label: {
+            Label("Delete reminder", systemImage: "trash")
+                .font(.system(size: 13))
+                .frame(minHeight: 32)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .font(.rowLabel)
+        .buttonStyle(BeaconControlButtonStyle())
         .foregroundStyle(Palette.secondary)
-        .frame(maxWidth: .infinity)
-        .frame(height: 44)
-        .background(
-            RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).fill(Palette.card)
-        )
     }
 
     // MARK: - Behaviour

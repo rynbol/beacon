@@ -42,22 +42,29 @@ final class TaskListModel {
     var lists: [(id: String, title: String)] = []
     var selectedListID: String?
 
-    private let store = ReminderStore()
-    private let sidecar = Sidecar()
-    private let notifier = NotificationScheduler()
-    private let defaults = (ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview")
-        ? UserDefaults(suiteName: "dev.dylan.beacon.v2.design-preview")! : .standard
+    // A preview must not even initialize live persistence or notification services.
+    @ObservationIgnored private lazy var store = ReminderStore()
+    @ObservationIgnored private lazy var sidecar = Sidecar()
+    @ObservationIgnored private lazy var notifier = NotificationScheduler()
+    private let defaults: UserDefaults
     private var watcher: Task<Void, Never>?
 
     var taskCount: Int { groups.reduce(0) { $0 + $1.tasks.count } }
 
     // MARK: - Lifecycle
 
-    let isPreview = (ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.v2.preview")
+    let isPreview: Bool
+    private var previewTasks: [TaskSnapshot] = []
+    private var previewState: [String: TaskState] = [:]
     private var startup: Task<Void, Never>?
     private var refreshing = false
     private var refreshAgain = false
     private var refreshWaiters: [CheckedContinuation<Void, Never>] = []
+
+    init(isPreview: Bool = ProcessInfo.processInfo.arguments.contains("--preview") || Bundle.main.bundleIdentifier == "dev.dylan.beacon.preview") {
+        self.isPreview = isPreview
+        defaults = isPreview ? UserDefaults(suiteName: "dev.dylan.beacon.design-preview")! : .standard
+    }
 
     func start() async {
         if let startup { await startup.value; return }
@@ -88,7 +95,7 @@ final class TaskListModel {
     }
 
     func refresh() async {
-        guard !isPreview else { return }
+        guard !isPreview else { rebuildPreview(); return }
         if refreshing {
             refreshAgain = true
             await withCheckedContinuation { refreshWaiters.append($0) }
@@ -160,6 +167,20 @@ final class TaskListModel {
         title: String, due: Date?, notes: String,
         listID: String?, recurrence: Recurrence?, urgency: Urgency = .none
     ) async {
+        if isPreview {
+            guard recurrence == nil || due != nil else {
+                writeError = describe(ReminderStore.WriteError.recurrenceNeedsDueDate)
+                return
+            }
+            let destination = listID ?? selectedListID ?? lists.first?.id ?? "preview-personal"
+            let task = TaskSnapshot(key: "preview-\(UUID().uuidString)", title: title,
+                listName: lists.first { $0.id == destination }?.title ?? "Personal", listID: destination,
+                due: due, hasTimeOfDay: due != nil, isRecurring: recurrence != nil,
+                notes: notes, recurrence: recurrence, priority: urgency.priority)
+            previewTasks.append(task)
+            rebuildPreview()
+            return
+        }
         await write {
             let key = try store.create(
                 title: title, due: due,
@@ -175,6 +196,25 @@ final class TaskListModel {
         _ task: TaskSnapshot, title: String, due: Date?, notes: String,
         listID: String?, recurrence: Recurrence?, urgency: Urgency? = nil
     ) async {
+        if isPreview {
+            guard let current = previewTasks.first(where: { $0.key == task.key }) else {
+                writeError = describe(ReminderStore.WriteError.unknownTask)
+                return
+            }
+            let preservesRule = current.isRecurring && current.recurrence == nil
+            guard due != nil || (recurrence == nil && !preservesRule) else {
+                writeError = describe(ReminderStore.WriteError.recurrenceNeedsDueDate)
+                return
+            }
+            let destination = listID ?? current.listID
+            replacePreview(TaskSnapshot(key: current.key, title: title,
+                listName: lists.first { $0.id == destination }?.title ?? current.listName, listID: destination,
+                due: due, hasTimeOfDay: due != nil, isRecurring: preservesRule || recurrence != nil,
+                isCompleted: current.isCompleted, completionDate: current.completionDate,
+                notes: notes, recurrence: preservesRule ? current.recurrence : recurrence,
+                priority: urgency?.priority ?? current.priority))
+            return
+        }
         await write {
             try store.update(
                 key: task.key, title: title, due: due,
@@ -189,6 +229,12 @@ final class TaskListModel {
     }
 
     func delete(_ task: TaskSnapshot) async {
+        if isPreview {
+            previewTasks.removeAll { $0.key == task.key }
+            previewState.removeValue(forKey: task.key)
+            rebuildPreview()
+            return
+        }
         await write {
             try store.delete(key: task.key)
             await sidecar.clear(key: task.key)
@@ -196,6 +242,11 @@ final class TaskListModel {
     }
 
     func toggleCompleted(_ task: TaskSnapshot) async {
+        if isPreview {
+            guard let current = previewTasks.first(where: { $0.key == task.key }) else { return }
+            setPreviewCompleted(!current.isCompleted, task: current)
+            return
+        }
         await write {
             try store.setCompleted(!task.isCompleted, key: task.key)
             if !task.isCompleted { await sidecar.clear(key: task.key) }
@@ -204,6 +255,11 @@ final class TaskListModel {
 
     /// A notification completion is idempotent, unlike the UI's toggle.
     func complete(_ task: TaskSnapshot) async {
+        if isPreview {
+            guard let current = previewTasks.first(where: { $0.key == task.key }), !current.isCompleted else { return }
+            setPreviewCompleted(true, task: current)
+            return
+        }
         guard !task.isCompleted else { return }
         await write {
             try store.setCompleted(true, key: task.key)
@@ -213,6 +269,23 @@ final class TaskListModel {
 
     /// Defers a task and moves it one rung down the ladder.
     func snooze(_ task: TaskSnapshot, by interval: TimeInterval) async {
+        if isPreview {
+            guard let current = previewTasks.first(where: { $0.key == task.key }) else { return }
+            let now = Date()
+            let target = now.addingTimeInterval(interval)
+            var state = previewState[current.key] ?? TaskState()
+            state.snoozeCount += 1
+            state.explicitIntentAt = now
+            state.snoozeAnchor = current.isRecurring ? now : nil
+            state.snoozedUntil = current.isRecurring ? target : nil
+            previewState[current.key] = state
+            replacePreview(TaskSnapshot(key: current.key, title: current.title,
+                listName: current.listName, listID: current.listID,
+                due: current.isRecurring ? current.due : target, hasTimeOfDay: current.isRecurring ? current.hasTimeOfDay : true,
+                isRecurring: current.isRecurring, isCompleted: current.isCompleted, completionDate: current.completionDate,
+                notes: current.notes, recurrence: current.recurrence, priority: current.priority))
+            return
+        }
         await write {
             let target = Date().addingTimeInterval(interval)
             if task.isRecurring {
@@ -300,7 +373,14 @@ final class TaskListModel {
     func isMuted(_ task: TaskSnapshot) -> Bool { mutedKeys.contains(task.key) }
 
     func toggleMuted(_ task: TaskSnapshot) async {
-        guard !isPreview else { return }
+        guard !isPreview else {
+            guard previewTasks.contains(where: { $0.key == task.key }) else { return }
+            var state = previewState[task.key] ?? TaskState()
+            state.isMuted.toggle()
+            previewState[task.key] = state
+            rebuildPreview()
+            return
+        }
         let muted = !mutedKeys.contains(task.key)
         await sidecar.setMuted(muted, key: task.key)
         await refresh()
@@ -425,22 +505,49 @@ final class TaskListModel {
     private func loadPreview() {
         let now = Date()
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now)!
-        let tasks = [
+        previewTasks = [
             TaskSnapshot(key: "preview-1", title: "Send the photos to Mom", listName: "Personal", due: now.addingTimeInterval(-3600), hasTimeOfDay: true, priority: 1),
             TaskSnapshot(key: "preview-2", title: "Book a table for Friday", listName: "Personal", notes: "Somewhere with a patio.", priority: 9),
             TaskSnapshot(key: "preview-3", title: "Take a proper screen break", listName: "Everyday", due: now.addingTimeInterval(3600), hasTimeOfDay: true, isRecurring: true, priority: 5),
             TaskSnapshot(key: "preview-4", title: "Water the plants", listName: "Home", due: tomorrow, hasTimeOfDay: true, isRecurring: true),
             TaskSnapshot(key: "preview-5", title: "Pick up the library books", listName: "Personal", due: tomorrow.addingTimeInterval(7200), hasTimeOfDay: true),
-            TaskSnapshot(key: "preview-6", title: "Plan a weekend by the coast", listName: "Personal", due: Settings.somedayDate(from: now, calendar: .current)),
+            TaskSnapshot(key: "preview-6", title: "Plan a weekend by the coast", listName: "Personal"),
             TaskSnapshot(key: "preview-7", title: "Send the project update", listName: "Work", isCompleted: true, completionDate: now)
         ]
         lists = [("preview-personal", "Personal"), ("preview-work", "Work")]
         selectedListID = lists.first?.id
-        groups = Sections.group(tasks, now: now, calendar: .current)
-        plan = Scheduler.plan(now: now, tasks: tasks, state: [:], settings: settings, calendar: .current)
         access = .granted
         alertsEnabled = false
+        rebuildPreview()
+    }
+
+    /// Sample mutations last only for this model's lifetime. They never pass
+    /// through write(), EventKit, the on-disk sidecar, or notification delivery.
+    private func rebuildPreview() {
+        guard isPreview else { return }
+        let now = Date()
+        groups = Sections.group(previewTasks, now: now, calendar: .current)
+        listGroups = Sections.groupByList(previewTasks, now: now, calendar: .current)
+        sidecarCounts = previewState.mapValues(\.snoozeCount)
+        mutedKeys = Set(previewState.filter(\.value.isMuted).keys)
+        plan = Scheduler.plan(now: now, tasks: previewTasks.filter { !$0.isCompleted },
+                              state: previewState, settings: settings, calendar: .current)
         lastRefresh = now
+        writeError = nil
+    }
+
+    private func replacePreview(_ task: TaskSnapshot) {
+        guard let index = previewTasks.firstIndex(where: { $0.key == task.key }) else { return }
+        previewTasks[index] = task
+        rebuildPreview()
+    }
+
+    private func setPreviewCompleted(_ completed: Bool, task: TaskSnapshot) {
+        if completed { previewState.removeValue(forKey: task.key) }
+        replacePreview(TaskSnapshot(key: task.key, title: task.title,
+            listName: task.listName, listID: task.listID, due: task.due, hasTimeOfDay: task.hasTimeOfDay,
+            isRecurring: task.isRecurring, isCompleted: completed, completionDate: completed ? .now : nil,
+            notes: task.notes, recurrence: task.recurrence, priority: task.priority))
     }
 
     private func describe(_ error: Error) -> String {

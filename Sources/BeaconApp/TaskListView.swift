@@ -50,7 +50,9 @@ struct TaskListView: View {
     @State private var showingSchedule = false
     @Namespace private var sectionHighlight
     @State private var destination: Destination = .all
+    @State private var sectionDirection: CGFloat = 1
     @State private var search = ""
+    @State private var searchExpanded = false
     @State private var capture = ""
     @State private var capturing = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -101,8 +103,8 @@ struct TaskListView: View {
     }
     private var reminderKeys: [String] { allTasks.map(\.key).sorted() }
     private var reminderTransition: AnyTransition {
-        .asymmetric(insertion: reduceMotion ? .opacity : .offset(y: -12).combined(with: .opacity),
-                    removal: reduceMotion ? .opacity : .offset(x: 24).combined(with: .opacity))
+        .asymmetric(insertion: reduceMotion ? .opacity : .offset(y: -8).combined(with: .opacity),
+                    removal: reduceMotion ? .opacity : .offset(x: 18).combined(with: .opacity))
     }
 
     var body: some View {
@@ -122,7 +124,10 @@ struct TaskListView: View {
                         quickCapture
                         content
                     }
-                }.modifier(BeaconSectionMotion(value: destination))
+                }
+                .frame(maxWidth: Metrics.workspaceWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .modifier(BeaconSectionMotion(value: destination, direction: sectionDirection))
                 footer
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -132,24 +137,41 @@ struct TaskListView: View {
         .disabled(editing != nil || showingSettings)
         .accessibilityHidden(editing != nil || showingSettings)
         .overlay {
-            if let editing {
-                TaskEditor(model: model, target: editing) { self.editing = nil }
-                    .id(editing.id)
+            ZStack {
+                if editing != nil || showingSettings {
+                    Color.black.opacity(0.12)
+                        .modifier(BeaconModalBackdrop()).allowsHitTesting(false)
+                }
+                if let editing {
+                    TaskEditor(model: model, target: editing) { self.editing = nil }
+                        .id(editing.id).modifier(BeaconModalSurface())
+                }
+                if showingSettings {
+                    SettingsView(model: model, dismiss: {
+                        showingSettings = false
+                        settingsStartsWithCalendars = false
+                        settingsStartsWithNotifications = false
+                    }, initiallyCalendars: settingsStartsWithCalendars, initiallyNotifications: settingsStartsWithNotifications)
+                        .modifier(BeaconModalSurface())
+                }
             }
-            if showingSettings {
-                SettingsView(model: model, dismiss: {
-                    showingSettings = false
-                    settingsStartsWithCalendars = false
-                    settingsStartsWithNotifications = false
-                }, initiallyCalendars: settingsStartsWithCalendars, initiallyNotifications: settingsStartsWithNotifications)
-            }
+            .animation(BeaconMotion.presentation, value: editing?.id)
+            .animation(BeaconMotion.presentation, value: showingSettings)
+            .allowsHitTesting(editing != nil || showingSettings)
         }
         .disabled(model.notificationSnoozeTask != nil)
         .accessibilityHidden(model.notificationSnoozeTask != nil)
         .overlay {
-            if let task = model.notificationSnoozeTask {
-                NotificationSnoozeChooser(model: model, task: task).id(task.key)
+            ZStack {
+                if let task = model.notificationSnoozeTask {
+                    Color.black.opacity(0.12)
+                        .modifier(BeaconModalBackdrop()).allowsHitTesting(false)
+                    NotificationSnoozeChooser(model: model, task: task)
+                        .id(task.key).modifier(BeaconModalSurface())
+                }
             }
+            .animation(BeaconMotion.presentation, value: model.notificationSnoozeTask?.key)
+            .allowsHitTesting(model.notificationSnoozeTask != nil)
         }
         .onChange(of: model.notificationSnoozeTask?.key) { _, key in
             if key != nil { showingSchedule = false }
@@ -166,8 +188,11 @@ struct TaskListView: View {
         ))
         .frame(minWidth: 760, minHeight: 580)
         .background(BeaconClickAwayFocus())
+        .onChange(of: searchFocused) { _, focused in
+            if !focused && search.isEmpty { searchExpanded = false }
+        }
         .background {
-            Button("Search reminders") { searchFocused = true }.keyboardShortcut("f").disabled(editing != nil || showingSettings || showingSchedule || model.notificationSnoozeTask != nil).hidden()
+            Button("Search reminders", action: openSearch).keyboardShortcut("f").disabled(editing != nil || showingSettings || showingSchedule || model.notificationSnoozeTask != nil).hidden()
             Button("New reminder") { editing = .new(dictate: false, defaultDue: newReminderDue) }
                 .keyboardShortcut("n").disabled(editing != nil || showingSettings || showingSchedule || model.notificationSnoozeTask != nil).hidden()
         }
@@ -180,7 +205,13 @@ struct TaskListView: View {
         guard !navigationBlocked,
               let index = Destination.allCases.firstIndex(of: destination) else { return }
         let sections = Destination.allCases
-        destination = sections[(index + step + sections.count) % sections.count]
+        selectDestination(sections[(index + step + sections.count) % sections.count], direction: step < 0 ? -1 : 1)
+    }
+
+    private func selectDestination(_ next: Destination, direction: CGFloat? = nil) {
+        guard next != destination else { return }
+        sectionDirection = direction ?? (Destination.allCases.firstIndex(of: next)! > Destination.allCases.firstIndex(of: destination)! ? 1 : -1)
+        destination = next
     }
 
     private var sidebar: some View {
@@ -195,7 +226,7 @@ struct TaskListView: View {
             ForEach(Destination.allCases) { item in
                 Button {
                     if destination == item { calendarModel.refreshAfterNavigation() }
-                    destination = item
+                    selectDestination(item)
                 } label: {
                     HStack(spacing: 11) {
                         BeaconGlyph(kind: item.glyph).frame(width: 20, height: 20)
@@ -209,17 +240,19 @@ struct TaskListView: View {
                     .foregroundStyle(destination == item ? accent : Palette.secondary)
                     .padding(.horizontal, 12).frame(height: 42)
                     .background {
-                        if destination == item {
-                            RoundedRectangle(cornerRadius: 9).fill(accent.opacity(0.09))
-                                .matchedGeometryEffect(id: "selection", in: sectionHighlight)
-                                .allowsHitTesting(false)
+                        ZStack {
+                            if destination == item {
+                                RoundedRectangle(cornerRadius: 9).fill(accent.opacity(0.09))
+                                    .matchedGeometryEffect(id: "selection", in: sectionHighlight)
+                            }
                         }
+                        .animation(reduceMotion ? nil : BeaconMotion.selection, value: destination)
+                        .allowsHitTesting(false)
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).padding(.horizontal, 12).padding(.bottom, 3)
+                .buttonStyle(BeaconControlButtonStyle()).padding(.horizontal, 12).padding(.bottom, 3)
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: destination)
             if destination == .calendar || destination == .today {
                 let day = destination == .calendar ? calendarModel.selectedDay : Date.now
                 let range = destination == .calendar && calendarModel.showingUpcoming
@@ -240,7 +273,7 @@ struct TaskListView: View {
                                         if calendarModel.hiddenIDs.contains(calendar.id) { Image(systemName: "eye.slash") }
                                     }.font(.system(size: 11)).foregroundStyle(Palette.secondary)
                                         .frame(minHeight: 28).contentShape(Rectangle())
-                                }.buttonStyle(.plain).help("\(calendar.title) · \(calendar.source)")
+                                }.buttonStyle(BeaconControlButtonStyle()).help("\(calendar.title) · \(calendar.source)")
                             }
                         }.padding(.horizontal, 25)
                     }.frame(maxHeight: CGFloat(min(calendars.count, 4) * 38))
@@ -248,17 +281,20 @@ struct TaskListView: View {
                 }
             }
             Spacer()
-            HStack(spacing: 8) {
-                Text("New reminder")
-                Spacer()
-                Text("⌘N").monospaced()
-            }.font(.system(size: 11)).foregroundStyle(Palette.secondary)
+            Button { editing = .new(dictate: false, defaultDue: newReminderDue) } label: {
+                HStack(spacing: 8) {
+                    Text("New reminder")
+                    Spacer()
+                    Text("⌘N").monospaced()
+                }.font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                    .contentShape(Rectangle())
+            }.buttonStyle(BeaconControlButtonStyle())
                 .padding(.horizontal, 25).padding(.bottom, 16)
             Button { showingSettings = true } label: {
                 Label("Settings", systemImage: "slider.horizontal.3")
                     .font(.system(size: 13)).foregroundStyle(Palette.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(12)
-            }.buttonStyle(.plain).keyboardShortcut(",").padding(.horizontal, 12).padding(.bottom, 16)
+            }.buttonStyle(BeaconControlButtonStyle()).keyboardShortcut(",").padding(.horizontal, 12).padding(.bottom, 16)
         }.frame(width: 210).background(Palette.band.opacity(0.65))
     }
 
@@ -278,22 +314,40 @@ struct TaskListView: View {
                 Task { await model.refresh(); await calendarModel.refresh() }
             } label: {
                 Image(systemName: "arrow.clockwise").frame(width: 28, height: 28)
-            }.buttonStyle(.plain).help("Refresh reminders and Calendar · ⌘R").accessibilityLabel("Refresh")
-            HStack(spacing: 7) {
-                Image(systemName: "magnifyingglass")
-                TextField("Search", text: $search).textFieldStyle(.plain).focused($searchFocused)
-                if !search.isEmpty {
-                    Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).accessibilityLabel("Clear search")
-                }
-            }.font(.system(size: 12)).foregroundStyle(Palette.secondary)
-                .padding(9).frame(width: 170).modifier(SwiftcnInputSurface(focused: searchFocused))
+            }.buttonStyle(BeaconControlButtonStyle()).help("Refresh reminders and Calendar · ⌘R").accessibilityLabel("Refresh")
+            if searchExpanded || !search.isEmpty {
+                HStack(spacing: 7) {
+                    Image(systemName: "magnifyingglass")
+                    TextField("Search", text: $search).textFieldStyle(.plain).focused($searchFocused)
+                        .task {
+                            // Set focus after the conditional native field is mounted.
+                            await Task.yield()
+                            if !Task.isCancelled { searchFocused = true }
+                        }
+                        .onSubmit { searchFocused = false }
+                    Button { search = ""; searchFocused = false; searchExpanded = false } label: {
+                        Image(systemName: "xmark").font(.system(size: 10))
+                    }.buttonStyle(BeaconControlButtonStyle()).accessibilityLabel("Close search")
+                }.font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                    .padding(9).frame(width: 180).modifier(SwiftcnInputSurface(focused: searchFocused))
+            } else {
+                Button(action: openSearch) {
+                    Image(systemName: "magnifyingglass").frame(width: 30, height: 30)
+                }.buttonStyle(BeaconControlButtonStyle()).accessibilityLabel("Search")
+                    .help("Search · ⌘F")
+            }
             if destination == .calendar {
                 Button { editing = .new(dictate: false, defaultDue: newReminderDue) } label: {
                     Image(systemName: "plus").frame(width: 30, height: 30)
-                }.buttonStyle(.plain).help("New reminder · ⌘N").accessibilityLabel("New reminder")
+                }.buttonStyle(BeaconControlButtonStyle()).help("New reminder · ⌘N").accessibilityLabel("New reminder")
             }
         }.padding(.horizontal, 32).padding(.top, 25).padding(.bottom, 24)
+    }
+
+    private func openSearch() {
+        captureFocused = false
+        if searchExpanded || !search.isEmpty { searchFocused = true }
+        else { searchExpanded = true }
     }
 
     private var quickCapture: some View {
@@ -301,20 +355,20 @@ struct TaskListView: View {
             HStack(spacing: 11) {
                 Button { editing = .new(dictate: false, defaultDue: newReminderDue) } label: {
                     Image(systemName: "plus").font(.system(size: 14)).frame(width: 24, height: 28)
-                }.buttonStyle(.plain).foregroundStyle(accent)
+                }.buttonStyle(BeaconControlButtonStyle()).foregroundStyle(accent)
                     .help("New reminder · ⌘N").accessibilityLabel("New reminder")
                 TextField("Remind me to…", text: $capture).textFieldStyle(.plain)
                     .font(.system(size: 14)).focused($captureFocused).onSubmit(addQuickReminder)
                     .accessibilityLabel("Quick reminder")
                 Button { editing = .new(dictate: true, defaultDue: newReminderDue) } label: { Image(systemName: "mic") }
-                    .buttonStyle(.plain)
+                    .buttonStyle(BeaconControlButtonStyle())
                     .keyboardShortcut("m", modifiers: [.command, .shift])
                     .help("Dictate a reminder · ⌘⇧M")
                     .accessibilityLabel("Dictate a reminder")
                 Button(action: addQuickReminder) {
                     Image(systemName: "return").font(.system(size: 12)).padding(6)
                         .background(Palette.band, in: RoundedRectangle(cornerRadius: 5))
-                }.buttonStyle(.plain).disabled(capture.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || capturing)
+                }.buttonStyle(BeaconControlButtonStyle()).disabled(capture.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || capturing)
                     .accessibilityLabel("Add reminder")
             }.padding(.horizontal, 12).padding(.vertical, 7).modifier(SwiftcnInputSurface(focused: captureFocused))
         }.padding(.horizontal, 32).padding(.bottom, 24)
@@ -363,10 +417,10 @@ struct TaskListView: View {
                 reminderContent
                     // Animate persisted additions/completions only. Search and section
                     // navigation do not change these keys; failed saves do neither.
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: completedKeys)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: reminderKeys)
+                    .animation(reduceMotion ? nil : BeaconMotion.list, value: completedKeys)
+                    .animation(reduceMotion ? nil : BeaconMotion.list, value: reminderKeys)
                 if destination == .today {
-                    TodayCalendarAgenda(model: calendarModel, showCalendar: { destination = .calendar }, followUp: { editing = .followUp($0) })
+                    TodayCalendarAgenda(model: calendarModel, showCalendar: { selectDestination(.calendar) }, followUp: { editing = .followUp($0) })
                         .padding(.top, 16)
                         .overlay(alignment: .top) { Rectangle().fill(Palette.hairline).frame(height: 1) }
                 }
@@ -405,6 +459,7 @@ struct TaskListView: View {
                                     .foregroundStyle(Palette.tertiary)
                                 Spacer()
                             }.foregroundStyle(Palette.secondary)
+                                .transaction { $0.animation = nil }
                         }
                         VStack(spacing: 0) {
                             ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
@@ -416,6 +471,8 @@ struct TaskListView: View {
                                 } mute: {
                                     Task { await model.toggleMuted(task) }
                                 } edit: { editing = .existing(task) }
+                                .geometryGroup()
+                                .transaction { $0.animation = nil }
                                 .transition(reminderTransition)
                             }
                         }
@@ -424,25 +481,26 @@ struct TaskListView: View {
                     .transition(reminderTransition)
                 }
             }
-            .transition(.asymmetric(insertion: reminderTransition, removal: .opacity))
+            .transition(.opacity)
         }
     }
 
     private var footer: some View {
         HStack(spacing: 7) {
             Image(systemName: model.access == .granted ? "checkmark.icloud" : "icloud.slash")
-            Text(model.isPreview ? "Design preview · sample reminders" : model.access == .granted ? "Connected to Apple Reminders" : "Apple Reminders isn’t connected")
+            Text(model.isPreview ? "Preview · sample data" : model.access == .granted ? "Apple Reminders" : "Reminders isn’t connected")
             Spacer()
             Button { settingsStartsWithNotifications = true; showingSettings = true } label: {
                 Label(model.isAlerting ? "Alerts on" : "Alerts off", systemImage: model.isAlerting ? "bell" : "bell.slash")
-            }.buttonStyle(.plain)
+            }.buttonStyle(BeaconControlButtonStyle())
             if model.plan != nil {
                 Button { showingSchedule = true } label: { Image(systemName: "info.circle") }
-                    .buttonStyle(.plain).help("View notification schedule")
+                    .buttonStyle(BeaconControlButtonStyle()).help("View notification schedule")
             }
-        }.font(.system(size: 10)).foregroundStyle(Palette.secondary)
-            .padding(.horizontal, 32).padding(.vertical, 15)
-            .overlay(alignment: .top) { Rectangle().fill(Palette.hairline).frame(height: 1) }
+        }.font(.system(size: 11)).foregroundStyle(Palette.secondary)
+            .padding(.horizontal, 32).padding(.vertical, 12)
+            .frame(maxWidth: Metrics.workspaceWidth)
+            .frame(maxWidth: .infinity)
     }
 }
 
@@ -494,7 +552,7 @@ private struct SectionBand: View {
             .padding(.vertical, 9)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BeaconControlButtonStyle())
         .disabled(!canCollapse)
         .background(Palette.band)
     }
@@ -534,7 +592,7 @@ struct TaskRow: View {
                     .frame(width: Metrics.target, height: Metrics.target)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BeaconControlButtonStyle())
                 .accessibilityLabel(task.isCompleted ? "Mark incomplete: \(task.title)" : "Complete: \(task.title)")
 
                 Button(action: edit) {
@@ -574,7 +632,7 @@ struct TaskRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BeaconControlButtonStyle())
 
                 if !task.isCompleted {
                     Menu {
@@ -635,13 +693,13 @@ private struct NoticeBar: View {
             Spacer(minLength: 0)
             if let action {
                 Button(action.label, action: action.run)
-                    .buttonStyle(.plain)
+                    .buttonStyle(BeaconControlButtonStyle())
                     .font(.taskMeta)
                     .foregroundStyle(Palette.ink)
             }
             if let dismiss {
                 Button("Dismiss", action: dismiss)
-                    .buttonStyle(.plain)
+                    .buttonStyle(BeaconControlButtonStyle())
                     .font(.taskMeta)
                     .foregroundStyle(Palette.tertiary)
             }
@@ -712,7 +770,7 @@ private struct NotificationSnoozeChooser: View {
     var body: some View {
         ZStack {
             Button { model.notificationSnoozeTask = nil } label: {
-                Color.black.opacity(0.12).contentShape(Rectangle())
+                Color.clear.contentShape(Rectangle())
             }.buttonStyle(.plain).disabled(saving).accessibilityLabel("Dismiss snooze options")
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
@@ -720,7 +778,7 @@ private struct NotificationSnoozeChooser: View {
                     Spacer()
                     Button { model.notificationSnoozeTask = nil } label: {
                         Image(systemName: "xmark").frame(width: 28, height: 28)
-                    }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
+                    }.buttonStyle(BeaconControlButtonStyle()).keyboardShortcut(.cancelAction)
                         .disabled(saving).accessibilityLabel("Close snooze options")
                 }
                 Text(task.title).font(.taskTitle).lineLimit(3)

@@ -10,6 +10,7 @@ struct CalendarPersonalMedia: View {
     @State private var importing = false
     @State private var error: String?
     @State private var previewURL: URL?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -34,26 +35,29 @@ struct CalendarPersonalMedia: View {
                                         .frame(width: 24, height: 24)
                                         .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(BeaconControlButtonStyle())
                                 .help("Remove attachment · moves Beacon’s copy to Trash")
                                 .accessibilityLabel("Remove attachment: \(String(url.lastPathComponent.dropFirst(37)))")
                             }
+                            .transaction { $0.animation = nil }
+                            .transition(reduceMotion ? .opacity : .offset(y: 6).combined(with: .opacity))
                     }
                     Button(action: chooseFiles) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(Palette.secondary.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                                .strokeBorder(Palette.secondary.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
                             if importing { ProgressView().controlSize(.small) }
-                            else { Image(systemName: "plus").font(.system(size: 17, weight: .light)) }
+                            else { Image(systemName: "plus").font(.system(size: 16, weight: .light)) }
                         }
                         .foregroundStyle(Palette.secondary)
-                        .frame(width: 64, height: 64)
+                        .frame(width: 56, height: 56)
                         .contentShape(RoundedRectangle(cornerRadius: 8))
                     }
-                    .buttonStyle(.plain).disabled(importing)
+                    .buttonStyle(BeaconControlButtonStyle()).disabled(importing)
                     .accessibilityLabel("Add photos or videos to personal note")
                     .help("Add photos or videos · stored only on this Mac")
                 }.padding(.vertical, 2)
+                    .animation(reduceMotion ? nil : BeaconMotion.list, value: store.files(for: noteKey))
             }.scrollIndicators(.hidden)
             if let error { Text(error).font(.system(size: 11)).foregroundStyle(Palette.secondary) }
         }
@@ -104,10 +108,10 @@ private struct CalendarMediaThumbnail: View {
                     Image(systemName: "photo.on.rectangle").foregroundStyle(Palette.secondary)
                 }
             }
-            .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 8))
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
-        .buttonStyle(.plain).help(name).accessibilityLabel("Preview attachment: \(name)")
+        .buttonStyle(BeaconControlButtonStyle()).help(name).accessibilityLabel("Preview attachment: \(name)")
         .task(id: url) {
             let request = QLThumbnailGenerator.Request(fileAt: url, size: CGSize(width: 128, height: 128), scale: 2, representationTypes: .thumbnail)
             thumbnail = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request).nsImage

@@ -9,7 +9,7 @@ case "${1:-debug}" in
   *) echo "Usage: $0 [debug|release]" >&2; exit 2 ;;
 esac
 APP="build/Beacon.app"
-if [[ "${BEACON_PREVIEW:-0}" == "1" ]]; then APP="build/BeaconV2Preview.app"; fi
+if [[ "${BEACON_PREVIEW:-0}" == "1" ]]; then APP="build/BeaconPreview.app"; fi
 mkdir -p build
 if ! xcodebuild -project Beacon.xcodeproj -scheme BeaconMac \
     -configuration "$CONFIG" -destination "platform=macOS,arch=$(uname -m)" \
@@ -22,10 +22,16 @@ rm -rf "$APP"
 ditto "build/DerivedData/Build/Products/$CONFIG/Beacon.app" "$APP"
 mkdir -p "$APP/Contents/Resources/Licenses"
 cp Resources/Licenses/*.txt "$APP/Contents/Resources/Licenses/"
+# Make a packaged app traceable to its checkout instead of relying on an old
+# preview name or whichever duplicate bundle Launch Services happens to find.
+BEACON_SOURCE_REVISION="$(git rev-parse --short HEAD)"
+if ! git diff --quiet; then BEACON_SOURCE_REVISION="$BEACON_SOURCE_REVISION-working"; fi
+/usr/libexec/PlistBuddy -c "Add :BeaconSourceRevision string $BEACON_SOURCE_REVISION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :BeaconSourceCheckout string $PWD" "$APP/Contents/Info.plist"
 if [[ "${BEACON_PREVIEW:-0}" == "1" ]]; then
-    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier dev.dylan.beacon.v2.preview" "$APP/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleName Beacon V2 Preview" "$APP/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Beacon V2 Preview" "$APP/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier dev.dylan.beacon.preview" "$APP/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName Beacon Preview" "$APP/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Beacon Preview" "$APP/Contents/Info.plist"
 fi
 if security find-certificate -c "Beacon Dev" >/dev/null 2>&1; then
     codesign --force --sign "Beacon Dev" --timestamp=none "$APP"

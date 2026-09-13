@@ -8,12 +8,14 @@ struct SwiftcnButtonStyle: ButtonStyle {
     enum Variant { case primary, outline, quiet }
     var variant: Variant = .outline
     var accent: Color = Palette.ink
+    var horizontalPadding: CGFloat = 12
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 12).frame(minHeight: 32)
+            .padding(.horizontal, horizontalPadding).frame(minHeight: 32)
             .foregroundStyle(variant == .primary ? Palette.onAccent : accent)
             .background(variant == .primary ? accent : variant == .outline ? Palette.card : .clear,
                         in: RoundedRectangle(cornerRadius: 8))
@@ -22,7 +24,23 @@ struct SwiftcnButtonStyle: ButtonStyle {
                     .strokeBorder(variant == .outline ? Palette.hairline : .clear, lineWidth: 1)
             }
             .contentShape(RoundedRectangle(cornerRadius: 8))
-            .opacity(!enabled ? 0.4 : configuration.isPressed ? 0.7 : 1)
+            .animation(reduceMotion ? nil : BeaconMotion.feedback) { surface in
+                surface.opacity(!enabled ? 0.4 : configuration.isPressed ? 0.7 : 1)
+            }
+    }
+}
+
+/// Feedback for compact native-semantic buttons without changing their metrics.
+/// Only opacity animates: labels and editable descendants keep their real layout.
+struct BeaconControlButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .animation(reduceMotion ? nil : BeaconMotion.feedback) { surface in
+                surface.opacity(!enabled ? 0.4 : configuration.isPressed ? 0.65 : 1)
+            }
     }
 }
 
@@ -39,13 +57,65 @@ struct SwiftcnCard<Content: View>: View {
     }
 }
 
+/// A single hierarchy for preference panes: heading, short context, then rows.
+struct BeaconSettingsGroup<Content: View>: View {
+    let title: String
+    var detail: String? = nil
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.ink).accessibilityAddTraits(.isHeader)
+                if let detail {
+                    Text(detail).font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            VStack(alignment: .leading, spacing: 0) { content() }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Controls share a trailing edge; supporting copy stays with its label.
+struct BeaconSettingsRow<Control: View>: View {
+    let title: String
+    var detail: String? = nil
+    @ViewBuilder var control: () -> Control
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 20) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.system(size: 13)).foregroundStyle(Palette.ink)
+                if let detail {
+                    Text(detail).font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            control().fixedSize(horizontal: true, vertical: false)
+        }
+        .frame(minHeight: 36)
+        .padding(.vertical, 9)
+    }
+}
+
+struct BeaconSettingsDivider: View {
+    var body: some View {
+        Rectangle().fill(Palette.hairline.opacity(0.65)).frame(height: 0.5)
+            .accessibilityHidden(true)
+    }
+}
+
 struct SwiftcnInputSurface: ViewModifier {
     var focused = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func body(content: Content) -> some View {
         content.background(Palette.card, in: RoundedRectangle(cornerRadius: 8))
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
                     .strokeBorder(focused ? Palette.secondary : Palette.hairline, lineWidth: 1)
+                    .animation(reduceMotion ? nil : BeaconMotion.feedback, value: focused)
                     .allowsHitTesting(false)
             }
     }
@@ -65,19 +135,22 @@ struct SwiftcnTabs<Value: Hashable>: View {
                         .foregroundStyle(selection == option.value ? Palette.ink : Palette.secondary)
                         .frame(height: 36)
                         .overlay(alignment: .bottom) {
-                            if selection == option.value {
-                                RoundedRectangle(cornerRadius: 1).fill(Palette.ink).frame(height: 2)
-                                    .matchedGeometryEffect(id: "selection", in: tabUnderline)
-                                    .allowsHitTesting(false)
+                            ZStack {
+                                if selection == option.value {
+                                    RoundedRectangle(cornerRadius: 1).fill(Palette.ink)
+                                        .matchedGeometryEffect(id: "selection", in: tabUnderline)
+                                }
                             }
+                            .frame(height: 2)
+                            .animation(reduceMotion ? nil : BeaconMotion.selection, value: selection)
+                            .allowsHitTesting(false)
                         }.contentShape(Rectangle())
-                }.buttonStyle(.plain)
+                }.buttonStyle(BeaconControlButtonStyle())
                     .accessibilityAddTraits(selection == option.value ? .isSelected : [])
             }
         }.overlay(alignment: .bottom) {
             Rectangle().fill(Palette.hairline).frame(height: 0.5).allowsHitTesting(false)
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: selection)
     }
 }
 
@@ -101,10 +174,13 @@ struct BeaconChoicePicker<Value: Hashable>: View {
     @Binding var selection: Value
     let options: [BeaconChoice<Value>]
     var placeholder = "Choose"
+    /// Compact color-only trigger, retaining the same guarded choice popover.
+    var swatch: Color? = nil
     @State private var presentationID = UUID()
     @State private var showing = false
     @State private var releaseTask: Task<Void, Never>?
     @Environment(\.beaconChoicePresentation) private var parentPresentation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var selected: BeaconChoice<Value>? { options.first { $0.value == selection } }
 
@@ -114,17 +190,28 @@ struct BeaconChoicePicker<Value: Hashable>: View {
             showing.toggle()
             if showing { parentPresentation.wrappedValue.insert(presentationID) }
         } label: {
-            HStack(spacing: 7) {
-                if let symbol = selected?.symbol {
-                    Image(systemName: symbol).foregroundStyle(selected?.color ?? Palette.secondary)
+            if let swatch {
+                Circle().fill(swatch).frame(width: 12, height: 12)
+                    .frame(width: 24, height: 36).contentShape(Rectangle())
+            } else {
+                HStack(spacing: 7) {
+                    if let symbol = selected?.symbol {
+                        Image(systemName: symbol).foregroundStyle(selected?.color ?? Palette.secondary)
+                    }
+                    Text(selected?.title ?? placeholder).lineLimit(1).truncationMode(.middle)
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Palette.secondary)
+                        .rotationEffect(.degrees(showing ? 180 : 0))
+                        .animation(reduceMotion ? nil : BeaconMotion.selection, value: showing)
                 }
-                Text(selected?.title ?? placeholder).lineLimit(1).truncationMode(.middle)
-                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Palette.secondary)
             }
         }
-        .buttonStyle(SwiftcnButtonStyle(variant: .quiet))
-        .background(showing ? Palette.control : .clear, in: RoundedRectangle(cornerRadius: 8))
+        .buttonStyle(SwiftcnButtonStyle(variant: .quiet, horizontalPadding: swatch == nil ? 12 : 0))
+        .background {
+            RoundedRectangle(cornerRadius: 8).fill(showing ? Palette.control : .clear)
+                .animation(reduceMotion ? nil : BeaconMotion.feedback, value: showing)
+                .allowsHitTesting(false)
+        }
         .accessibilityLabel(label)
         .accessibilityValue(selected?.title ?? placeholder)
         .disabled(options.isEmpty)
@@ -164,6 +251,7 @@ private struct BeaconChoicePanel<Value: Hashable>: View {
     let dismiss: () -> Void
     @FocusState private var focused: Int?
     @State private var hovered: Int?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -187,11 +275,16 @@ private struct BeaconChoicePanel<Value: Hashable>: View {
                                 .font(.system(size: 13)).foregroundStyle(Palette.ink)
                                 .padding(.horizontal, 10).frame(minHeight: 34)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(focused == index || hovered == index ? Palette.control : .clear,
-                                            in: RoundedRectangle(cornerRadius: 6))
+                                .background {
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(focused == index || hovered == index ? Palette.control : .clear)
+                                        .animation(reduceMotion ? nil : BeaconMotion.feedback,
+                                                   value: focused == index || hovered == index)
+                                        .allowsHitTesting(false)
+                                }
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain).focusable().focused($focused, equals: index).focusEffectDisabled()
+                            .buttonStyle(BeaconControlButtonStyle()).focusable().focused($focused, equals: index).focusEffectDisabled()
                             .onHover { hovered = $0 ? index : nil }
                             .accessibilityAddTraits(selection == option.value ? .isSelected : [])
                             .id(index)
@@ -244,7 +337,7 @@ struct BeaconStepper: View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Palette.ink).frame(width: 30, height: 28)
-                .contentShape(Rectangle()).opacity(enabled ? 1 : 0.35)
-        }.buttonStyle(.plain).disabled(!enabled).accessibilityLabel("\(name) \(label)")
+                .contentShape(Rectangle())
+        }.buttonStyle(BeaconControlButtonStyle()).disabled(!enabled).accessibilityLabel("\(name) \(label)")
     }
 }

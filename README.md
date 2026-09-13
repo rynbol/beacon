@@ -2,6 +2,10 @@
 
 A native reminder and calendar workspace over Apple Reminders. The V2 design is now the main version. See [design decisions and X research](docs/V2-DESIGN.md).
 
+The current [layout refresh](docs/LAYOUT-REFRESH.md) adds a bounded workspace and
+coherent Calendar, notes, and Settings surfaces. See the [motion system](docs/MOTION.md)
+for interaction research and rendering safeguards.
+
 Start with [the redesign and research notes](docs/REDESIGN.md). The earlier architecture proposal remains in [DESIGN.md](DESIGN.md) as historical context; its milestone table and reliability claims are not the current implementation contract.
 
 ## Build and open
@@ -18,10 +22,10 @@ For a design preview with sample reminders:
 
 ```sh
 BEACON_PREVIEW=1 ./Scripts/build-mac-app.sh
-open build/BeaconV2Preview.app
+open build/BeaconPreview.app
 ```
 
-The preview does not request Reminders access or save task changes. It displays a clear error if a write is attempted. Normal launch uses the existing `dev.dylan.beacon` identity and your existing preferences and sidecar.
+The preview uses the current UI with isolated sample data. Reminder edits stay in memory and reset when it closes; it does not request Reminders access or schedule notifications. Normal launch uses the existing `dev.dylan.beacon` identity and your existing preferences and sidecar.
 
 ## Using Beacon
 
