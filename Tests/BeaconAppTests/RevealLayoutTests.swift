@@ -88,6 +88,56 @@ final class RevealLayoutTests: XCTestCase {
         }
     }
 
+    func testRowExitStaysVisibleLongEnoughToReadAsMotion() {
+        XCTAssertEqual(BeaconRowExit.presence(at: 1), 1, accuracy: 0.001)
+        XCTAssertEqual(BeaconRowExit.presence(at: 0.35), 0, accuracy: 0.001)
+        XCTAssertEqual(BeaconRowExit.presence(at: 0), 0, accuracy: 0.001)
+
+        // The row must not blink out. It stays plainly visible early, and it
+        // still carries a trace at the half-way point.
+        XCTAssertGreaterThan(BeaconRowExit.presence(at: 0.8), 0.5)
+        XCTAssertGreaterThan(BeaconRowExit.presence(at: 0.5), 0.15)
+
+        // It must still empty before the row below climbs over the title, or
+        // the two print on the same pixels at full strength.
+        XCTAssertLessThan(BeaconRowExit.presence(at: 0.5), 0.35)
+
+        var previous: CGFloat = -1
+        for step in stride(from: CGFloat(0), through: 1, by: 0.05) {
+            let presence = BeaconRowExit.presence(at: step)
+            XCTAssertGreaterThanOrEqual(presence, previous, "presence must not go back up")
+            previous = presence
+        }
+    }
+
+    func testRowExitNeverChangesLayout() throws {
+        // The exit must stay out of layout. A viewport that collapses needs a
+        // clip, and that clip runs ahead of the row content, which every row
+        // carries in a nonanimated transaction. Surviving rows render sliced.
+        for width: CGFloat in [320, 640] {
+            let baseline = render(width: width) { row }
+            for progress: CGFloat in [0, 0.35, 0.65, 0.9, 1] {
+                let size = render(width: width) { row.modifier(BeaconRowExit(progress: progress)) }
+                XCTAssertEqual(size.height, baseline.height, accuracy: 1)
+                XCTAssertEqual(size.width, baseline.width, accuracy: 1)
+            }
+        }
+    }
+
+    private var row: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Circle().strokeBorder(lineWidth: 1.5).frame(width: 21, height: 21).frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Send the signed lease back to the letting agent before Friday")
+                        .font(.system(size: 14)).lineLimit(2)
+                    Text("Tomorrow, 09:00").font(.system(size: 12))
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(minHeight: 68)
+            Rectangle().frame(height: 1)
+        }
+    }
+
     private var notes: some View {
         Text("""
         Preparation for the meeting includes reviewing the proposal, bringing \
@@ -133,5 +183,26 @@ private struct RecordingLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         probe.record(bounds)
         subviews[0].place(at: bounds.origin, anchor: .topLeading, proposal: proposal)
+    }
+}
+
+/// Every date must fit at both compact and expanded window widths.
+@MainActor
+final class UpcomingBoardWidthTests: XCTestCase {
+    func testEveryDateFitsAtEverySupportedWidth() {
+        for count in [7, 8] {
+            for pane in stride(from: CGFloat(320), through: 2000, by: 10) {
+                let column = UpcomingCalendarAgenda.columnWidth(pane: pane, days: count)
+                XCTAssertGreaterThan(column, 0)
+                XCTAssertEqual(column * CGFloat(count) + CGFloat(count - 1) * UpcomingCalendarAgenda.columnSpacing,
+                               pane, accuracy: 0.01)
+            }
+        }
+    }
+    func testColumnsGrowContinuouslyWithWindow() {
+        XCTAssertLessThan(UpcomingCalendarAgenda.columnWidth(pane: 500, days: 8),
+                          UpcomingCalendarAgenda.columnWidth(pane: 900, days: 8))
+        XCTAssertLessThan(UpcomingCalendarAgenda.columnWidth(pane: 900, days: 8),
+                          UpcomingCalendarAgenda.columnWidth(pane: 1500, days: 8))
     }
 }

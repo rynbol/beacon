@@ -59,4 +59,31 @@ final class CalendarNotesTests: XCTestCase {
         XCTAssertNil(CalendarEventSnapshot.meetingLink(in: "https://sample.zoom.com.attacker.test/j/123"))
         XCTAssertNil(CalendarEventSnapshot.meetingLink(in: "http://sample.zoom.com/j/123"))
     }
+
+    private func links(_ text: String) -> [String] {
+        let attributed = CalendarNotes.linked(text)
+        return attributed.runs.compactMap { $0.link?.absoluteString }
+    }
+
+    func testEveryLinkInNotesBecomesClickableWhateverTheProvider() {
+        XCTAssertEqual(links("Video link: https://whereby.com/plaid-interview"),
+                       ["https://whereby.com/plaid-interview"])
+        XCTAssertEqual(links("Agenda https://docs.google.com/document/d/1 then https://meet.google.com/abc-defg-hij"),
+                       ["https://docs.google.com/document/d/1", "https://meet.google.com/abc-defg-hij"])
+        // A link the Join meeting button refuses stays reachable in the notes.
+        XCTAssertEqual(links("Cancel: https://calendar.example.com/cancel?id=99"),
+                       ["https://calendar.example.com/cancel?id=99"])
+    }
+
+    func testOnlyOpenableSchemesBecomeClickable() {
+        XCTAssertEqual(links("Write to dylan@example.com"), ["mailto:dylan@example.com"])
+        XCTAssertTrue(links("Open file:///Users/dylan/secret.txt").isEmpty)
+        XCTAssertTrue(links("Run zoommtg://zoom.us/join?confno=123").isEmpty)
+        XCTAssertTrue(links("Nothing to open here").isEmpty)
+    }
+
+    func testLinkedTextKeepsTheNotesReadableAndUnchanged() {
+        let text = "Join https://plaid.zoom.us/j/123 before 09:00"
+        XCTAssertEqual(String(CalendarNotes.linked(text).characters), text)
+    }
 }

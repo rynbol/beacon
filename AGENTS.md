@@ -11,3 +11,5 @@
 - Capture rule: Mac manual capture inherits its view: Today uses now, Upcoming uses tomorrow at 9am, Calendar uses the selected day at 9am (now if today), and All/Someday/Completed default to nil. Typed or explicitly chosen dates override this default. Siri-created Apple Reminders and capture without view context still use Someday when no date is supplied. Preserve nil due dates; do not manufacture distant dates. Explicit today/tomorrow/time remains scheduled. Someday-only tasks should not generate alerts or a digest.
 
 - Mac Calendar: show account calendars with consistent colors; refresh on view/date/filter navigation, foreground, explicit refresh, and EventKit changes. Keep event reads separate from reminder scheduling. The last-read timestamp is not proof of completed Google/iCloud sync.
+
+- Commit at completed, verified checkpoints and push them to the current remote branch, as requested by the user. Keep unrelated work out of each checkpoint.

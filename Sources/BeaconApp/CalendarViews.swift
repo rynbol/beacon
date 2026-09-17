@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftUIIntrospect
 import BeaconKit
 
 struct CalendarWorkspace: View {
@@ -9,6 +10,7 @@ struct CalendarWorkspace: View {
     @State private var selectedID: String?
     @State private var showingDatePicker = false
     @State private var dateDirection: CGFloat = 1
+    @Namespace private var viewHighlight
     @Namespace private var dayHighlight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var events: [CalendarEventSnapshot] {
@@ -24,16 +26,19 @@ struct CalendarWorkspace: View {
                         .font(.system(size: 12)).foregroundStyle(Palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Group {
+                ZStack(alignment: .topLeading) {
                     if model.showingUpcoming {
                         UpcomingCalendarAgenda(model: model, search: search, followUp: followUp)
+                            .modifier(CalendarModeSurface(forward: true, reduceMotion: reduceMotion))
                     } else {
                         VStack(alignment: .leading, spacing: 20) {
                             weekStrip
                             dayAgenda
                         }
+                        .modifier(CalendarModeSurface(forward: false, reduceMotion: reduceMotion))
                     }
-                }.modifier(BeaconSectionMotion(value: model.showingUpcoming))
+                }
+                .animation(BeaconMotion.navigation, value: model.showingUpcoming)
             } else { CalendarConnection(model: model); Spacer() }
         }.padding(.horizontal, 32).padding(.bottom, 22)
             .onChange(of: model.selectedDay) { _, _ in selectedID = nil }
@@ -89,7 +94,13 @@ struct CalendarWorkspace: View {
             Text(title).font(.system(size: 12, weight: active ? .medium : .regular))
                 .foregroundStyle(active ? Palette.ink : Palette.secondary)
                 .padding(.horizontal, 11).frame(height: 28)
-                .background(active ? Palette.card : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .background {
+                    if active {
+                        RoundedRectangle(cornerRadius: 6).fill(Palette.card)
+                            .matchedGeometryEffect(id: "calendarMode", in: viewHighlight)
+                    }
+                }
+                .animation(reduceMotion ? nil : BeaconMotion.selection, value: model.showingUpcoming)
                 .contentShape(Rectangle())
         }.buttonStyle(BeaconControlButtonStyle())
             .accessibilityAddTraits(active ? .isSelected : [])
@@ -412,7 +423,7 @@ private struct CalendarEventDetails: View {
     let isExpanded: Bool
     let followUp: () -> Void
     private var notes: (body: String, meetingDetails: String) {
-        CalendarNotes.presentation(event.notes.trimmingCharacters(in: .whitespacesAndNewlines))
+        CalendarNotes.presentation(CalendarNotes.withoutRepeatedLocation(event.notes, location: event.location).trimmingCharacters(in: .whitespacesAndNewlines))
     }
     @State private var showMeetingDetails = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -436,7 +447,8 @@ private struct CalendarEventDetails: View {
                 }.font(.system(size: 13))
             }
             if !notes.body.isEmpty {
-                CalendarEventNotes(text: notes.body)
+                CalendarEventNotes(text: notes.body, isPreview: model.isPreview)
+                    .frame(maxWidth: Metrics.notesWidth, alignment: .leading)
             }
             if !notes.meetingDetails.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
@@ -451,7 +463,7 @@ private struct CalendarEventDetails: View {
                     }.buttonStyle(BeaconControlButtonStyle()).foregroundStyle(Palette.secondary)
                         .accessibilityValue(showMeetingDetails ? "Expanded" : "Collapsed")
                     BeaconDisclosure(isExpanded: showMeetingDetails) {
-                        CalendarEventNotes(text: notes.meetingDetails, showsHeading: false)
+                        CalendarEventNotes(text: notes.meetingDetails, showsHeading: false, isPreview: model.isPreview)
                             .padding(.top, 10)
                     }
                 }
@@ -476,7 +488,6 @@ private struct CalendarEventDetails: View {
             }
 
         }
-        .frame(maxWidth: Metrics.notesWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.leading, 27).padding(.trailing, 18).padding(.bottom, 18)
             .foregroundStyle(Palette.ink)
@@ -647,14 +658,24 @@ private struct CalendarNoteModeLayout: Layout {
 private struct CalendarEventNotes: View {
     let text: String
     var showsHeading = true
+    var isPreview = false
+    /// Detected once, not on every redraw, and shared by both copies below.
+    private let attributed: AttributedString
     @State private var expanded = false
     @State private var fullHeight: CGFloat = 0
     @State private var previewHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var overflows: Bool { fullHeight > previewHeight + 1 }
 
+    init(text: String, showsHeading: Bool = true, isPreview: Bool = false) {
+        self.text = text
+        self.showsHeading = showsHeading
+        self.isPreview = isPreview
+        self.attributed = CalendarNotes.displayText(text)
+    }
+
     private var bodyText: some View {
-        Text(text).font(.system(size: 14)).lineSpacing(3)
+        Text(attributed).font(.system(size: 14)).lineSpacing(3)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -691,6 +712,12 @@ private struct CalendarEventNotes: View {
                     .accessibilityValue(expanded ? "Expanded" : "Collapsed")
             }
         }
+        .tint(TaskListModel.shared.accent.color)
+        .environment(\.openURL, OpenURLAction { _ in
+            // The sample preview never opens a browser, which matches the
+            // Join meeting button.
+            isPreview ? .handled : .systemAction
+        })
     }
 }
 
@@ -703,30 +730,177 @@ struct UpcomingCalendarAgenda: View {
     private var events: [CalendarEventSnapshot] {
         model.upcomingEvents.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) }
     }
+    private var days: [CalendarBoardDay] {
+        CalendarBoardDay.days(events: events, range: UpcomingEventFilter.range(now: .now))
+    }
+
+    static let columnSpacing: CGFloat = 1
+
+    /// Every date remains visible; density adapts instead of hiding columns.
+    static func columnWidth(pane: CGFloat, days: Int) -> CGFloat {
+        let count = CGFloat(max(1, days))
+        return max(0, (pane - columnSpacing * (count - 1)) / count)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            BeaconScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    if events.isEmpty {
-                        Text(model.feed.isRefreshing ? "Loading upcoming events…" : "No upcoming events match. Check your keywords and calendar toggles.")
-                            .font(.taskMeta).foregroundStyle(Palette.secondary).padding(.vertical, 28)
-                    }
-                    ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
-                        if index == 0 || !Calendar.current.isDate(event.start, inSameDayAs: events[index - 1].start) {
-                            Text(event.start.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
-                                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.secondary)
-                                .padding(.top, index == 0 ? 4 : 18).padding(.bottom, 6)
-                                .accessibilityAddTraits(.isHeader)
+        GeometryReader { geometry in
+            let columnWidth = Self.columnWidth(pane: geometry.size.width, days: days.count)
+            let compact = columnWidth < 120
+            Group {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 1) {
+                        ForEach(days) { day in
+                            dayHeader(day, compact: compact).frame(width: columnWidth)
                         }
-                        CalendarEventCard(event: event, model: model, selectedID: $selectedID, followUp: followUp)
                     }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-                    .modifier(CalendarAgendaMotion(selection: selectedID))
+                    Rectangle().fill(Palette.hairline).frame(height: 1)
+                    BeaconScrollView {
+                        HStack(alignment: .top, spacing: 1) {
+                            ForEach(days) { day in
+                                VStack(alignment: .leading, spacing: compact ? 5 : 8) {
+                                    ForEach(day.events) { event in
+                                        eventTile(event, day: day.date, compact: compact)
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(compact ? 3 : 8)
+                                .frame(width: columnWidth, alignment: .topLeading)
+                                .frame(minHeight: max(0, geometry.size.height - (compact ? 64 : 88)), alignment: .topLeading)
+                                .background(Calendar.current.isDateInToday(day.date) ? Palette.band.opacity(0.35) : .clear)
+                                .overlay(alignment: .trailing) {
+                                    Rectangle().fill(Palette.hairline.opacity(0.6)).frame(width: 1)
+                                }
+                            }
+                        }
+                    }
+                    .scrollIndicators(.hidden)
+                }
+            }
+
+        }
+        .onChange(of: events.map(\.id)) { _, _ in selectedID = nil }
+    }
+
+    private func dayHeader(_ day: CalendarBoardDay, compact: Bool) -> some View {
+        let today = Calendar.current.isDateInToday(day.date)
+        return HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(today ? "Today" : day.date.formatted(.dateTime.weekday(.abbreviated)))
+                    .font(.system(size: compact ? 10 : 11, weight: .medium)).lineLimit(1)
+                    .foregroundStyle(today ? TaskListModel.shared.accent.color : Palette.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(day.date.formatted(.dateTime.day())).font(.system(size: compact ? 18 : 23, weight: .medium))
+                    if !compact {
+                        Text(day.date.formatted(.dateTime.month(.abbreviated)))
+                            .font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            if !compact && !day.events.isEmpty {
+                Text("\(day.events.count)").font(.system(size: 11)).monospacedDigit()
+                    .foregroundStyle(Palette.tertiary)
             }
         }
-        .onChange(of: events.map(\.id)) { _, ids in
-            if let selectedID, !ids.contains(selectedID) { self.selectedID = nil }
+        .padding(.horizontal, compact ? 5 : 16).frame(height: compact ? 58 : 76)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(day.date.formatted(date: .complete, time: .omitted)), \(day.events.count) events")
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private func eventTile(_ event: CalendarEventSnapshot, day: Date, compact: Bool) -> some View {
+        let key = "\(day.timeIntervalSinceReferenceDate)|\(event.id)"
+        let tint = model.color(for: event.calendarID)
+        let source = model.source(for: event.calendarID)?.title ?? "Calendar"
+        let continued = event.start < day && !event.isAllDay
+        return Button { selectedID = selectedID == key ? nil : key } label: {
+            VStack(alignment: .leading, spacing: compact ? 4 : 7) {
+                Text(event.isAllDay ? "All day" : continued ? "Continues" : event.start.formatted(date: .omitted, time: .shortened))
+                    .font(.system(size: compact ? 9 : 11, weight: .medium)).foregroundStyle(Palette.secondary).lineLimit(1).minimumScaleFactor(0.85)
+                Text(event.title).font(.system(size: compact ? 11 : 13, weight: .medium))
+                    .foregroundStyle(Palette.ink).lineLimit(compact ? 3 : 4)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !compact {
+                    Text(source).font(.system(size: 10)).foregroundStyle(Palette.secondary).lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, compact ? 7 : 12).padding(.leading, compact ? 5 : 12).padding(.trailing, compact ? 3 : 9)
+            .background(tint.opacity(selectedID == key ? 0.16 : 0.07), in: RoundedRectangle(cornerRadius: 7))
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 1).fill(tint).frame(width: 2).padding(.vertical, 10)
+            }
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selectedID == key ? tint.opacity(0.5) : Palette.hairline.opacity(0.5)))
+            .contentShape(RoundedRectangle(cornerRadius: 7))
         }
+        .buttonStyle(BeaconControlButtonStyle())
+        .help("\(event.title) · \(CalendarEventFormatting.timeRange(event)) · \(source)")
+        .accessibilityLabel("\(event.title), \(CalendarEventFormatting.timeRange(event)), \(source)")
+        .accessibilityHint("Open event details")
+        .popover(isPresented: Binding(get: { selectedID == key }, set: { if !$0 && selectedID == key { selectedID = nil } }),
+                 attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+            CalendarEventPreview(event: event, model: model) {
+                selectedID = nil
+                followUp($0)
+            }
+            .id(key)
+        }
+    }
+}
+
+/// A popover is already a disclosure; keep its heading and content stable
+/// instead of embedding the agenda's animated, collapsible card inside it.
+private struct CalendarEventPreview: View {
+    let event: CalendarEventSnapshot
+    var model: CalendarModel
+    let followUp: (CalendarEventSnapshot) -> Void
+    @State private var detailsHeight: CGFloat = 1
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(spacing: 7) {
+                    Circle().fill(model.color(for: event.calendarID)).frame(width: 6, height: 6)
+                    Text(model.source(for: event.calendarID)?.title ?? "Calendar")
+                        .font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                }
+                Text(event.title).font(.system(size: 18, weight: .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(event.start.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())) · \(CalendarEventFormatting.timeRange(event))")
+                    .font(.system(size: 12)).foregroundStyle(Palette.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }.padding(20)
+            Rectangle().fill(Palette.hairline).frame(height: 1)
+            BeaconScrollView {
+                CalendarEventDetails(event: event, model: model, isExpanded: true) { followUp(event) }
+                    .padding(.top, 18)
+                    .fixedSize(horizontal: false, vertical: true)
+                    // Measure unrestricted content, never the capped viewport.
+                    // No animated height feedback or shrinking text proposals.
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                        if abs(detailsHeight - height) > 0.5 { detailsHeight = height }
+                    }
+            }
+            .frame(height: min(420, detailsHeight))
+            .animation(nil, value: detailsHeight)
+        }
+        .frame(width: 500)
+        .foregroundStyle(Palette.ink)
+        .background(Palette.card)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairline, lineWidth: 1))
+    }
+}
+
+private struct CalendarModeSurface: ViewModifier {
+    let forward: Bool
+    let reduceMotion: Bool
+    func body(content: Content) -> some View {
+        content.geometryGroup()
+            .transaction { $0.animation = nil }
+            .transition(.asymmetric(
+                insertion: .offset(x: reduceMotion ? 0 : (forward ? 12 : -12)).combined(with: .opacity),
+                removal: .opacity))
     }
 }
 

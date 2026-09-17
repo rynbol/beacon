@@ -104,7 +104,9 @@ struct TaskListView: View {
     private var reminderKeys: [String] { allTasks.map(\.key).sorted() }
     private var reminderTransition: AnyTransition {
         .asymmetric(insertion: reduceMotion ? .opacity : .offset(y: -8).combined(with: .opacity),
-                    removal: reduceMotion ? .opacity : .offset(x: 18).combined(with: .opacity))
+                    removal: reduceMotion ? .opacity
+                        : .modifier(active: BeaconRowExit(progress: 0),
+                                    identity: BeaconRowExit(progress: 1)))
     }
 
     var body: some View {
@@ -125,7 +127,7 @@ struct TaskListView: View {
                         content
                     }
                 }
-                .frame(maxWidth: Metrics.workspaceWidth)
+                .frame(maxWidth: destination == .calendar && calendarModel.showingUpcoming ? 1440 : Metrics.workspaceWidth)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .modifier(BeaconSectionMotion(value: destination, direction: sectionDirection))
                 footer
@@ -417,7 +419,7 @@ struct TaskListView: View {
                 reminderContent
                     // Animate persisted additions/completions only. Search and section
                     // navigation do not change these keys; failed saves do neither.
-                    .animation(reduceMotion ? nil : BeaconMotion.list, value: completedKeys)
+                    .animation(reduceMotion ? nil : BeaconMotion.completion, value: completedKeys)
                     .animation(reduceMotion ? nil : BeaconMotion.list, value: reminderKeys)
                 if destination == .today {
                     TodayCalendarAgenda(model: calendarModel, showCalendar: { selectDestination(.calendar) }, followUp: { editing = .followUp($0) })
@@ -465,14 +467,14 @@ struct TaskListView: View {
                             ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
                                 TaskRow(task: task, accent: accent, isMuted: model.isMuted(task),
                                         snoozeOptions: model.snoozeOptions(for: task), chooseSnooze: { model.notificationSnoozeTask = task }, isLast: index == group.tasks.count - 1) {
-                                    Task { await model.toggleCompleted(task) }
+                                    await model.toggleCompleted(task)
                                 } snooze: { interval in
                                     Task { await model.snooze(task, by: interval) }
                                 } mute: {
                                     Task { await model.toggleMuted(task) }
                                 } edit: { editing = .existing(task) }
-                                .geometryGroup()
                                 .transaction { $0.animation = nil }
+                                .geometryGroup()
                                 .transition(reminderTransition)
                             }
                         }
@@ -481,7 +483,7 @@ struct TaskListView: View {
                     .transition(reminderTransition)
                 }
             }
-            .transition(.opacity)
+            .transition(reminderTransition)
         }
     }
 
@@ -567,19 +569,30 @@ struct TaskRow: View {
     let snoozeOptions: [(label: String, interval: TimeInterval)]
     let chooseSnooze: () -> Void
     let isLast: Bool
-    let toggle: () -> Void
+    let toggle: () async -> Void
     let snooze: (TimeInterval) -> Void
     let mute: () -> Void
     let edit: () -> Void
     @State private var hovered = false
+    @State private var savingCompletion = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Button(action: toggle) {
+                Button {
+                    guard !savingCompletion else { return }
+                    savingCompletion = true
+                    Task {
+                        await toggle()
+                        // Failed writes leave the row in place and restore its
+                        // checkbox. Successful writes drive the list transition.
+                        savingCompletion = false
+                    }
+                } label: {
                     ZStack {
-                        if task.isCompleted {
-                            Circle().fill(Palette.tertiary)
+                        if task.isCompleted || savingCompletion {
+                            Circle().fill(task.isCompleted ? Palette.tertiary : accent)
                                 .frame(width: Metrics.circle, height: Metrics.circle)
                             Image(systemName: "checkmark")
                                 .font(.system(size: 11, weight: .bold))
@@ -589,9 +602,11 @@ struct TaskRow: View {
                                 .frame(width: Metrics.circle, height: Metrics.circle)
                         }
                     }
+                    .animation(reduceMotion ? nil : BeaconMotion.feedback, value: savingCompletion)
                     .frame(width: Metrics.target, height: Metrics.target)
                     .contentShape(Rectangle())
                 }
+                .disabled(savingCompletion)
                 .buttonStyle(BeaconControlButtonStyle())
                 .accessibilityLabel(task.isCompleted ? "Mark incomplete: \(task.title)" : "Complete: \(task.title)")
 

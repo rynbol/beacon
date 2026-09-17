@@ -21,6 +21,62 @@ public enum CalendarNotes {
         return (body, details)
     }
 
+    private static let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    /// Schemes a calendar note is allowed to open. Provider text is data from
+    /// other people, so a custom application scheme never reaches the system.
+    private static let openableSchemes: Set<String> = ["https", "http", "mailto", "tel"]
+
+    /// Marks the links inside text that `plainText` already flattened, so the
+    /// notes view can render them as clickable without a second parse.
+    public static func linked(_ text: String) -> AttributedString {
+        var attributed = AttributedString(text)
+        guard let detector = linkDetector else { return attributed }
+        for match in detector.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+            guard let url = match.url,
+                  openableSchemes.contains(url.scheme?.lowercased() ?? ""),
+                  let range = Range(match.range, in: text),
+                  let lower = AttributedString.Index(range.lowerBound, within: attributed),
+                  let upper = AttributedString.Index(range.upperBound, within: attributed),
+                  lower < upper else { continue }
+            attributed[lower..<upper].link = url
+        }
+        return attributed
+    }
+
+    /// Compact standalone web links without hiding their destination host.
+    /// Inline prose stays intact, and the original URL remains the link target.
+    public static func displayText(_ text: String) -> AttributedString {
+        var result = AttributedString()
+        let lines = text.components(separatedBy: .newlines)
+        for (index, line) in lines.enumerated() {
+            if index > 0 { result.append(AttributedString("\n")) }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let url = URL(string: trimmed),
+               ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+               let host = url.host, !trimmed.contains(where: { $0.isWhitespace }) {
+                let name = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+                var label = AttributedString("Open \(name) ↗")
+                label.link = url
+                result.append(label)
+            } else { result.append(linked(line)) }
+        }
+        return result
+    }
+
+    /// Remove only an exact duplicate of the separately displayed location.
+    public static func withoutRepeatedLocation(_ text: String, location: String) -> String {
+        func normalized(_ value: String) -> String {
+            value.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ").lowercased()
+        }
+        let target = normalized(location)
+        guard !target.isEmpty else { return text }
+        return text.components(separatedBy: .newlines).filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let candidate = trimmed.lowercased().hasPrefix("address:") ? String(trimmed.dropFirst(8)) : trimmed
+            return normalized(candidate) != target
+        }.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     public static func plainText(_ source: String) -> String {
         let htmlTag = #"(?i)</?(?:html|body|p|div|br|a|span|ul|ol|li|b|strong|i|em|table|tr|td|h[1-6]|pre|blockquote|script|style|img)\b[^>]*>"#
         guard source.range(of: htmlTag, options: .regularExpression) != nil,

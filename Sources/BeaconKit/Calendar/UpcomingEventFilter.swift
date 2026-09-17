@@ -23,8 +23,12 @@ public struct UpcomingEventFilter: Sendable {
         return (include.isEmpty || include.contains { title.contains(Self.folded($0)) })
             && !exclude.contains { title.contains(Self.folded($0)) }
     }
+    /// Starts at `now` and runs to the midnight that closes the seventh day
+    /// ahead, so that day counts in full. At 11:00 on Wednesday the window
+    /// reaches the end of the Wednesday a week later, not 11:00 on that day.
     public static func range(now: Date, calendar: Calendar = .current) -> DateInterval {
-        DateInterval(start: now, end: calendar.date(byAdding: .day, value: 7, to: now)!)
+        let today = calendar.startOfDay(for: now)
+        return DateInterval(start: now, end: calendar.date(byAdding: .day, value: 8, to: today)!)
     }
     public func events(_ events: [CalendarEventSnapshot], now: Date, calendar: Calendar = .current,
                        hiddenCalendarIDs: Set<String> = []) -> [CalendarEventSnapshot] {

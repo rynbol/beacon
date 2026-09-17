@@ -454,6 +454,10 @@ enum BeaconMotion {
     static let presentation = Animation.easeOut(duration: 0.22)
     static let removal = Animation.easeOut(duration: 0.18)
     static let list = Animation.smooth(duration: 0.24, extraBounce: 0)
+    /// Completion only. It runs longer than `list`, because the leaving row
+    /// has to stay legible for long enough to read as motion. It stays under
+    /// the 300 ms ceiling in DESIGN.md.
+    static let completion = Animation.smooth(duration: 0.28, extraBounce: 0)
 }
 
 /// Synchronous reveal geometry. The first child always receives its natural
@@ -482,6 +486,42 @@ struct BeaconRevealLayout: Layout {
             subview.place(at: bounds.origin, anchor: .topLeading,
                           proposal: ProposedViewSize(width: bounds.width, height: natural.height))
         }
+    }
+}
+
+/// A reminder leaving the list. SwiftUI drops the row out of the layout at
+/// once, so the rows below already close the gap on their own spring. The one
+/// defect left is the overlap: at full opacity the leaving row prints its
+/// title across the row that climbs into its place. This clears the row
+/// sideways and empties it early, before the two can collide.
+///
+/// It deliberately changes nothing about layout. A viewport that collapses in
+/// step with the spring reads well in theory, but the clip it needs falls out
+/// of step with the row content, which every row carries in a nonanimated
+/// transaction. The surviving rows then render sliced for the whole transition.
+struct BeaconRowExit: ViewModifier, Animatable {
+    /// 1 while the row is in place, 0 once it is gone.
+    var progress: CGFloat
+    var slide: CGFloat = 18
+
+    nonisolated var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    /// How much of the row is still on screen. It holds most of the travel, so
+    /// the exit reads as motion rather than as a row that blinks out. It still
+    /// reaches 0 before the row below climbs over the title, and what overlap
+    /// is left falls under 25 percent opacity.
+    nonisolated static func presence(at progress: CGFloat) -> CGFloat {
+        min(1, max(0, (progress - 0.35) / 0.65))
+    }
+
+    func body(content: Content) -> some View {
+        let presence = Self.presence(at: progress)
+        return content
+            .offset(x: slide * (1 - presence))
+            .opacity(presence)
     }
 }
 

@@ -32,9 +32,35 @@ final class UpcomingEventFilterTests: XCTestCase {
         calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
         let start = calendar.date(from: DateComponents(year: 2026, month: 3, day: 7, hour: 12))!
         let end = UpcomingEventFilter.range(now: start, calendar: calendar).end
-        XCTAssertEqual(calendar.component(.hour, from: end), 12)
-        XCTAssertEqual(calendar.component(.day, from: end), 14)
-        XCTAssertEqual(end.timeIntervalSince(start), 7 * 86400 - 3600)
+        // The seventh day ahead is the 14th, and the window holds all of it.
+        XCTAssertEqual(calendar.component(.hour, from: end), 0)
+        XCTAssertEqual(calendar.component(.day, from: end), 15)
+        // Seven and a half days, less the hour that the spring change takes.
+        XCTAssertEqual(end.timeIntervalSince(start), 7.5 * 86400 - 3600)
+    }
+
+    func testSeventhDayCountsInFullFromAnyTimeOfDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Singapore")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 16, hour: 11))!
+        let filter = UpcomingEventFilter()
+
+        let lateOnLastDay = event("Late on the 23rd",
+            start: calendar.date(from: DateComponents(year: 2026, month: 9, day: 23, hour: 23))!,
+            end: calendar.date(from: DateComponents(year: 2026, month: 9, day: 23, hour: 23, minute: 59))!)
+        let allDayLastDay = CalendarEventSnapshot(identifier: "allday", calendarID: "work", title: "All day the 23rd",
+            start: calendar.date(from: DateComponents(year: 2026, month: 9, day: 23))!,
+            end: calendar.date(from: DateComponents(year: 2026, month: 9, day: 24))!, isAllDay: true)
+        let nextMorning = event("Morning of the 24th",
+            start: calendar.date(from: DateComponents(year: 2026, month: 9, day: 24, hour: 9))!,
+            end: calendar.date(from: DateComponents(year: 2026, month: 9, day: 24, hour: 10))!)
+        let earlierToday = event("Earlier on the 16th",
+            start: calendar.date(from: DateComponents(year: 2026, month: 9, day: 16, hour: 8))!,
+            end: calendar.date(from: DateComponents(year: 2026, month: 9, day: 16, hour: 9))!)
+
+        let titles = filter.events([lateOnLastDay, allDayLastDay, nextMorning, earlierToday],
+                                   now: now, calendar: calendar).map(\.title)
+        XCTAssertEqual(titles, ["All day the 23rd", "Late on the 23rd"])
     }
     func testEveryInterviewCasingMatchesInBothDirections() {
         let letters = Array("interview")
@@ -122,28 +148,37 @@ final class UpcomingEventFilterTests: XCTestCase {
         XCTAssertEqual(Set(result.map(\.id)).count, 3)
     }
 
-    func testChangingNowExpiresEventsAndMovesWindowForward() {
+    func testChangingNowExpiresEventsAndMovesTheEndOneWholeDayAtATime() {
         let limit = UpcomingEventFilter.range(now: now).end
         let expiring = event("Expiring", end: now.addingTimeInterval(1))
         let arriving = event("Arriving", start: limit, end: limit.addingTimeInterval(3600))
         let filter = UpcomingEventFilter()
         XCTAssertEqual(filter.events([expiring, arriving], now: now).map(\.title), ["Expiring"])
-        XCTAssertEqual(filter.events([expiring, arriving], now: now.addingTimeInterval(2)).map(\.title), ["Arriving"])
+
+        // The start still moves by the second, so a finished event drops out at
+        // once. The end holds at midnight, so nothing new arrives with it.
+        XCTAssertTrue(filter.events([expiring, arriving], now: now.addingTimeInterval(2)).isEmpty)
+
+        // The end moves on only when the day turns.
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now)!
+        XCTAssertEqual(filter.events([expiring, arriving], now: tomorrow).map(\.title), ["Arriving"])
     }
 
     func testCalendarDaysAcrossFallBackYearAndLeapDay() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        // The end is the midnight after the seventh day ahead, so it lands one
+        // calendar day later than that day, at hour 0.
         for (year, month, day, endYear, endMonth, endDay, hours) in [
-            (2026, 10, 31, 2026, 11, 7, 169),
-            (2026, 12, 28, 2027, 1, 4, 168),
-            (2028, 2, 26, 2028, 3, 4, 168)
+            (2026, 10, 31, 2026, 11, 8, 181),
+            (2026, 12, 28, 2027, 1, 5, 180),
+            (2028, 2, 26, 2028, 3, 5, 180)
         ] {
             let start = calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
             let range = UpcomingEventFilter.range(now: start, calendar: calendar)
             XCTAssertEqual(range.start, start)
             XCTAssertEqual(calendar.dateComponents([.year, .month, .day, .hour], from: range.end),
-                           DateComponents(year: endYear, month: endMonth, day: endDay, hour: 12))
+                           DateComponents(year: endYear, month: endMonth, day: endDay, hour: 0))
             XCTAssertEqual(range.duration, Double(hours * 3600))
         }
     }

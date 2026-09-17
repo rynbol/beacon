@@ -50,15 +50,68 @@ public struct CalendarEventSnapshot: Identifiable, Sendable, Equatable {
         start < interval.end && (end > interval.start || (end == start && start >= interval.start))
     }
     private static let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    /// Providers named outright. A match here always wins.
+    private static let knownMeetingHosts = ["meet.google.com", "zoom.us", "zoom.com",
+                                            "teams.microsoft.com", "teams.microsoft.us",
+                                            "teams.live.com", "webex.com"]
+    /// Words that mark a host as a place where a meeting happens. They cover
+    /// providers the list above does not name, and company hosts such as
+    /// meet.example.com.
+    private static let meetingHostSignals = ["meet", "zoom", "teams", "webex", "huddle", "whereby",
+                                             "chime", "hangout", "bluejeans", "gotomeeting",
+                                             "ringcentral", "around", "video", "conference"]
+    /// A link that acts on the meeting instead of opening it. "Join meeting"
+    /// must never open one of these, because a click then cancels the event.
+    private static let refusedInURL = ["cancel", "reschedule", "decline", "unsubscribe",
+                                       "optout", "opt-out", "/support", "support.",
+                                       "/privacy", "/terms", "/help"]
+    private static let refusedNearby = ["cancel", "reschedule", "decline", "unsubscribe",
+                                        "opt out", "opt-out"]
+
+    private static func isKnownMeetingHost(_ host: String) -> Bool {
+        knownMeetingHosts.contains { host == $0 || host.hasSuffix("." + $0) }
+    }
+
+    /// A host that carries a named provider anywhere but the end impersonates
+    /// it, as `meet.google.com.attacker.test` does. The loose rule alone never
+    /// catches this, because anyone can name their first label "meet".
+    private static func impersonatesKnownHost(_ host: String) -> Bool {
+        knownMeetingHosts.contains { host.contains($0) } && !isKnownMeetingHost(host)
+    }
+
+    /// Only the first label and the registrable tail carry a signal. Reading
+    /// every label would accept a provider name buried in the middle of a host
+    /// that belongs to somebody else.
+    private static func hostCarriesMeetingSignal(_ host: String) -> Bool {
+        guard !impersonatesKnownHost(host) else { return false }
+        let labels = host.split(separator: ".").map(String.init)
+        let first = labels.first ?? ""
+        let tail = labels.suffix(2).joined(separator: ".")
+        return meetingHostSignals.contains { first.contains($0) || tail.contains($0) }
+    }
+
     public static func meetingLink(in text: String) -> URL? {
         guard let detector = linkDetector else { return nil }
-        let text = CalendarNotes.plainText(text)
-        return detector.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap(\.url).first { url in
-            guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else { return false }
-            return ["meet.google.com", "zoom.us", "zoom.com", "teams.microsoft.com", "teams.live.com", "webex.com"].contains {
-                host == $0 || host.hasSuffix("." + $0)
+        let lines = CalendarNotes.plainText(text).components(separatedBy: .newlines)
+        var candidates: [(url: URL, nearby: String)] = []
+        for (index, line) in lines.enumerated() {
+            // The line above usually carries the label, as in "Join Zoom
+            // Meeting" over a bare link.
+            let nearby = ((index > 0 ? lines[index - 1] : "") + " " + line).lowercased()
+            for match in detector.matches(in: line, range: NSRange(line.startIndex..., in: line)) {
+                guard let url = match.url, url.scheme?.lowercased() == "https" else { continue }
+                candidates.append((url, nearby))
             }
         }
+        let usable = candidates.filter { candidate in
+            let absolute = candidate.url.absoluteString.lowercased()
+            return !refusedInURL.contains(where: { absolute.contains($0) })
+                && !refusedNearby.contains(where: { candidate.nearby.contains($0) })
+        }
+        if let known = usable.first(where: { isKnownMeetingHost($0.url.host?.lowercased() ?? "") }) {
+            return known.url
+        }
+        return usable.first { hostCarriesMeetingSignal($0.url.host?.lowercased() ?? "") }?.url
     }
 }
 

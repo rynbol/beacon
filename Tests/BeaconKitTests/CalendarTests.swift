@@ -39,6 +39,49 @@ final class CalendarTests: XCTestCase {
         XCTAssertNil(CalendarEventSnapshot.meetingLink(in: "https://meet.google.com.attacker.test/abc"))
         XCTAssertNil(CalendarEventSnapshot.meetingLink(in: "http://meet.google.com/abc"))
     }
+
+    func testMeetingLinksAcceptProvidersOutsideTheNamedList() {
+        for (text, host) in [("Video link: https://whereby.com/plaid-interview", "whereby.com"),
+                             ("https://chime.aws/1234567890", "chime.aws"),
+                             ("https://meet.plaid.com/dylan", "meet.plaid.com"),
+                             ("https://meet.around.co/r/plaid", "meet.around.co"),
+                             ("https://gov.teams.microsoft.us/l/meetup-join/19", "gov.teams.microsoft.us")] {
+            XCTAssertEqual(CalendarEventSnapshot.meetingLink(in: text)?.host, host, text)
+        }
+    }
+
+    func testLooseHostRuleStillRefusesEveryLookalikeSpelling() {
+        // Anyone can name a first label "meet", so a named provider that sits
+        // anywhere but the end of the host marks an impersonator.
+        for text in ["https://meet.google.com.attacker.test/abc",
+                     "https://sample.zoom.com.attacker.test/j/123",
+                     "https://teams.microsoft.com.evil.example/l/meetup-join/19",
+                     "https://webex.com.phish.test/meet/dylan"] {
+            XCTAssertNil(CalendarEventSnapshot.meetingLink(in: text), text)
+        }
+    }
+
+    func testNonMeetingLinksNeverBecomeAJoinButton() {
+        for text in ["Agenda: https://docs.google.com/document/d/1abc/edit",
+                     "Prep: https://www.notion.so/plaid/prep-9f2",
+                     "Cancel this meeting: https://calendar.example.com/cancel?id=99",
+                     "Reschedule: https://calendar.example.com/reschedule-meeting?id=99",
+                     "Need help? https://support.zoom.us/hc/en-us"] {
+            XCTAssertNil(CalendarEventSnapshot.meetingLink(in: text), text)
+        }
+    }
+
+    func testJoinLinkWinsOverOtherLinksInTheSameInvite() {
+        let invite = """
+        Cancel this meeting: https://calendar.example.com/cancel?id=99
+        Agenda doc: https://docs.google.com/document/d/1abc/edit
+        Join Zoom Meeting
+        https://plaid.zoom.us/j/9876543210?pwd=Abc
+        Need help? https://support.zoom.us/hc/en-us
+        """
+        XCTAssertEqual(CalendarEventSnapshot.meetingLink(in: invite)?.absoluteString,
+                       "https://plaid.zoom.us/j/9876543210?pwd=Abc")
+    }
     func testEveryRefreshRereadsEvenWhenRangeIsUnchanged() async {
         let reader = StubCalendarReader(results: [.loaded(calendars: [], events: [event("before")]), .loaded(calendars: [], events: [event("after")])])
         let feed = CalendarFeed(reader: reader)
