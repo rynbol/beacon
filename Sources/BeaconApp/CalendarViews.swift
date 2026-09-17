@@ -727,6 +727,7 @@ struct UpcomingCalendarAgenda: View {
     var search: String
     let followUp: (CalendarEventSnapshot) -> Void
     @State private var selectedID: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var events: [CalendarEventSnapshot] {
         model.upcomingEvents.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) }
     }
@@ -760,9 +761,11 @@ struct UpcomingCalendarAgenda: View {
                                 VStack(alignment: .leading, spacing: compact ? 5 : 8) {
                                     ForEach(day.events) { event in
                                         eventTile(event, day: day.date, compact: compact)
+                                            .modifier(BeaconItemMotion())
                                     }
                                     Spacer(minLength: 0)
                                 }
+                                .animation(reduceMotion ? nil : BeaconMotion.list, value: model.manuallyIncludedIDs)
                                 .padding(compact ? 3 : 8)
                                 .frame(width: columnWidth, alignment: .topLeading)
                                 .frame(minHeight: max(0, geometry.size.height - (compact ? 64 : 88)), alignment: .topLeading)
@@ -908,6 +911,7 @@ struct UpcomingKeywordSettings: View {
     var model: CalendarModel
     @State private var includeDraft = ""
     @State private var excludeDraft = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             BeaconSettingsGroup(title: "Next 7 days",
@@ -929,12 +933,13 @@ struct UpcomingKeywordSettings: View {
                     Button { model.setManuallyIncluded(event, included: false) } label: {
                         Image(systemName: "xmark").frame(width: 28, height: 28)
                     }.buttonStyle(BeaconControlButtonStyle()).accessibilityLabel("Remove manual inclusion for \(event.title)")
-                }
+                }.modifier(BeaconItemMotion())
             }
             if model.manuallyIncludedEvents.isEmpty {
                 Text("No events added this week.").font(.system(size: 12)).foregroundStyle(Palette.secondary)
             }
         }
+        .animation(reduceMotion ? nil : BeaconMotion.list, value: model.manuallyIncludedIDs)
     }
     private func keywordList(_ label: String, values: [String], draft: Binding<String>, excluding: Bool) -> some View {
         HStack(alignment: .top, spacing: 14) {
@@ -956,8 +961,10 @@ struct UpcomingKeywordSettings: View {
                                     .frame(maxWidth: 250).contentShape(Rectangle())
                             }.buttonStyle(BeaconControlButtonStyle())
                                 .accessibilityLabel("Remove \(label.lowercased()) keyword \(keyword)")
+                                .modifier(BeaconItemMotion())
                         }
                     }
+                    .transition(.opacity)
                 }
                 HStack(spacing: 6) {
                     TextField("Add keyword…", text: draft)
@@ -975,6 +982,7 @@ struct UpcomingKeywordSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(reduceMotion ? nil : BeaconMotion.list, value: values)
         }
     }
     private func add(_ draft: Binding<String>, excluding: Bool) {

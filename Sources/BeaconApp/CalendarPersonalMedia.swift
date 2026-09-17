@@ -39,8 +39,7 @@ struct CalendarPersonalMedia: View {
                                 .help("Remove attachment · moves Beacon’s copy to Trash")
                                 .accessibilityLabel("Remove attachment: \(String(url.lastPathComponent.dropFirst(37)))")
                             }
-                            .transaction { $0.animation = nil }
-                            .transition(reduceMotion ? .opacity : .offset(y: 6).combined(with: .opacity))
+                            .modifier(BeaconItemMotion())
                     }
                     Button(action: chooseFiles) {
                         ZStack {

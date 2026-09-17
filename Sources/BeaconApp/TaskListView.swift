@@ -103,7 +103,8 @@ struct TaskListView: View {
     }
     private var reminderKeys: [String] { allTasks.map(\.key).sorted() }
     private var reminderTransition: AnyTransition {
-        .asymmetric(insertion: reduceMotion ? .opacity : .offset(y: -8).combined(with: .opacity),
+        .asymmetric(insertion: (reduceMotion ? AnyTransition.opacity : .offset(y: -10).combined(with: .opacity))
+                        .animation(reduceMotion ? BeaconMotion.feedback : BeaconMotion.list),
                     removal: reduceMotion ? .opacity
                         : .modifier(active: BeaconRowExit(progress: 0),
                                     identity: BeaconRowExit(progress: 1)))

@@ -525,6 +525,21 @@ struct BeaconRowExit: ViewModifier, Animatable {
     }
 }
 
+/// Shared insertion/removal for small persisted items. Geometry moves as a
+/// unit; labels and native controls do not inherit the layout transaction.
+struct BeaconItemMotion: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.transaction { $0.animation = nil }
+            .geometryGroup()
+            .transition(.asymmetric(
+                insertion: (reduceMotion ? AnyTransition.opacity : .offset(y: -10).combined(with: .opacity))
+                    .animation(reduceMotion ? BeaconMotion.feedback : BeaconMotion.list),
+                removal: (reduceMotion ? AnyTransition.opacity : .offset(x: 10).combined(with: .opacity))
+                    .animation(BeaconMotion.removal)))
+    }
+}
+
 struct BeaconDisclosure<Content: View>: View {
     let isExpanded: Bool
     @ViewBuilder var content: () -> Content
